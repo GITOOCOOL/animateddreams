@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnimatedDreams</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --neon-blue: #00f3ff;
+        --neon-pink: #ff00ff;
+        --neon-purple: #bc13fe;
+        --bg-dark: #050505;
+        --grid-color: rgba(0, 243, 255, 0.1);
+      }
+      
+      body {
+        font-family: 'Space Mono', monospace;
+        background-color: var(--bg-dark);
+        color: #e2e8f0;
+        overflow-x: hidden;
+      }
+      
+      h1, h2, h3, h4, button {
+        font-family: 'Orbitron', sans-serif;
+      }
+
+      /* Retro Grid Background */
+      .retro-grid {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-image: 
+          linear-gradient(var(--grid-color) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+        background-size: 40px 40px;
+        background-position: center top;
+        transform: perspective(500px) rotateX(20deg) scale(1.5) translateY(-100px);
+        opacity: 0.2;
+        z-index: -1;
+        pointer-events: none;
+        animation: grid-scroll 20s linear infinite;
+      }
+
+      @keyframes grid-scroll {
+        0% { background-position: center 0; }
+        100% { background-position: center 40px; }
+      }
+
+      /* CRT Scanline Effect */
+      .scanlines {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(
+          to bottom,
+          rgba(255,255,255,0),
+          rgba(255,255,255,0) 50%,
+          rgba(0,0,0,0.1) 50%,
+          rgba(0,0,0,0.1)
+        );
+        background-size: 100% 4px;
+        z-index: 50;
+        pointer-events: none;
+        opacity: 0.3;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #000;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--neon-purple);
+        border: 1px solid var(--neon-blue);
+      }
+      
+      /* Neon Text Utilities */
+      .text-neon-blue { color: var(--neon-blue); text-shadow: 0 0 5px var(--neon-blue); }
+      .text-neon-pink { color: var(--neon-pink); text-shadow: 0 0 5px var(--neon-pink); }
+      
+      /* Neon Box Utilities */
+      .border-neon-blue { border-color: var(--neon-blue); box-shadow: 0 0 5px var(--neon-blue), inset 0 0 10px rgba(0, 243, 255, 0.1); }
+      .border-neon-pink { border-color: var(--neon-pink); box-shadow: 0 0 5px var(--neon-pink), inset 0 0 10px rgba(255, 0, 255, 0.1); }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div class="retro-grid"></div>
+    <div class="scanlines"></div>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
