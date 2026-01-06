@@ -56,7 +56,7 @@ export const analyzeDreamText = async (dreamText: string, attachments: DreamAtta
   });
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-2.0-flash-exp',
     contents: { parts },
     config: {
       responseMimeType: "application/json",
@@ -90,7 +90,7 @@ export const generateDreamImage = async (visualPrompt: string): Promise<string> 
   const ai = getClient();
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-image-preview',
+    model: 'gemini-2.0-flash-exp',
     contents: {
       parts: [{ text: visualPrompt }]
     },

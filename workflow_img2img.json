@@ -1,0 +1,65 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 0,
+      "steps": 50,
+      "cfg": 5.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 0.65,
+      "model": [ "4", 0 ],
+      "positive": [ "6", 0 ],
+      "negative": [ "7", 0 ],
+      "latent_image": [ "10", 0 ]
+    },
+    "class_type": "KSampler"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "juggernautXL_ragnarokBy.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "6": {
+    "inputs": {
+      "text": "positive prompt placeholder",
+      "clip": [ "4", 1 ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "7": {
+    "inputs": {
+      "text": "bad anatomy, blurry eyes, distorted face, deformed iris, low quality, worst quality, ugly, text, watermark, grainy, cropped, amateur",
+      "clip": [ "4", 1 ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "samples": [ "3", 0 ],
+      "vae": [ "4", 2 ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "Img2Img",
+      "images": [ "8", 0 ]
+    },
+    "class_type": "SaveImage"
+  },
+  "10": {
+    "inputs": {
+      "pixels": [ "11", 0 ],
+      "vae": [ "4", 2 ]
+    },
+    "class_type": "VAEEncode"
+  },
+  "11": {
+    "inputs": {
+      "image": "example.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  }
+}

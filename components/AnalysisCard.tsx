@@ -1,6 +1,6 @@
 import React from 'react';
 import { DreamAnalysis } from '../types';
-import { BrainCircuit, Sparkles, Tag, Quote, Terminal } from 'lucide-react';
+import { Terminal, Sparkles, AlertTriangle, BrainCircuit, Tag } from 'lucide-react';
 
 interface AnalysisCardProps {
   analysis: DreamAnalysis;
@@ -14,12 +14,16 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
       
       <div className="relative bg-black border border-cyan-500/30 rounded-lg p-6 shadow-2xl overflow-hidden">
         {/* Decorative Header Line */}
-        <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4 mb-6">
-           <h2 className="text-3xl font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 drop-shadow-[0_0_5px_rgba(0,243,255,0.5)]">
-             {analysis.title}
-           </h2>
-           <Terminal className="w-5 h-5 text-cyan-600 animate-pulse" />
-        </div>
+        <div className="flex items-center gap-2 mb-3">
+        {analysis.interpretation.includes("neural interface failed") ? (
+             <AlertTriangle className="w-5 h-5 text-orange-500" />
+        ) : (
+             <Sparkles className="w-5 h-5 text-cyan-400" />
+        )}
+        <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-500">
+          {analysis.title}
+        </h3>
+      </div>
 
         {/* Summary */}
         <div className="mb-8 relative pl-4 border-l-2 border-purple-500">

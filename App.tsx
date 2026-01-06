@@ -1,14 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { DreamState, DreamAttachment } from './types';
+import { DreamState, DreamAttachment, ComfySettings } from './types';
 import { analyzeDreamText, generateDreamImage, generateDreamVideo } from './services/geminiService';
+import { generateComfyImage, checkComfyConnection, getAvailableModels, getAvailableLoras } from './services/comfyService';
+import { analyzeDreamTextOllama, checkOllamaConnection } from './services/ollamaService';
 import AnalysisCard from './components/AnalysisCard';
 import MediaPanel from './components/MediaPanel';
-import { Moon, Star, Sparkles, RefreshCw, AlertTriangle, Zap, Radio, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
+import ProgressBar from './components/ProgressBar';
+import SettingsPanel from './components/SettingsPanel';
+import ConfirmDialog from './components/ConfirmDialog';
+import { Moon, Star, Sparkles, RefreshCw, AlertTriangle, Zap, Radio, Paperclip, X, FileText, Image as ImageIcon, Server, Wifi } from 'lucide-react';
 
 const App = () => {
   // Application State
-  const [dreamState, setDreamState] = useState<DreamState>({
+  const [dreamState, setDreamState] = useState<DreamState & { progress: number; progressStatus: string }>({
     rawText: '',
     attachments: [],
     analysis: null,
@@ -18,9 +23,34 @@ const App = () => {
     isGeneratingImage: false,
     isGeneratingVideo: false,
     error: null,
+    progress: 0,
+    progressStatus: ''
   });
 
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [generationMode, setGenerationMode] = useState<'cloud' | 'local'>('cloud');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [availableLoras, setAvailableLoras] = useState<string[]>([]);
+  const [isComfyConnected, setIsComfyConnected] = useState(false);
+  const [isOllamaConnected, setIsOllamaConnected] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // State for confirm dialog is defined above.
+
+
+  // Default High Quality Settings
+  const [comfySettings, setComfySettings] = useState<ComfySettings>({
+    model: 'juggernautXL_ragnarokBy.safetensors',
+    steps: 50,
+    cfg: 5.5,
+    sampler: 'dpmpp_2m',
+    scheduler: 'karras',
+    denoise: 0.65,
+    width: 768,
+    height: 768
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check for API key on mount for Veo compatibility
@@ -32,7 +62,40 @@ const App = () => {
       }
     };
     checkKey();
+    
+    // Check connections
+    const checkServices = async () => {
+        try {
+          const comfy = await checkComfyConnection();
+          setIsComfyConnected(comfy);
+          if (comfy) {
+              console.log("ComfyUI detected!");
+              
+              // Fetch models
+              try {
+                  const models = await getAvailableModels();
+                  setAvailableModels(models);
+                  
+                  const loras = await getAvailableLoras();
+                  console.log("[App.tsx] Updating available LoRAs state:", loras);
+                  setAvailableLoras(loras);
+              } catch (e) {
+                  console.error("Failed to fetch Comfy resources", e);
+              }
+          }
+        } catch (error) {
+           console.error("Service check failed:", error);
+           setIsComfyConnected(false);
+        }
+
+        const ollama = await checkOllamaConnection();
+        setIsOllamaConnected(ollama);
+    };
+    
+    checkServices();
   }, []);
+
+
 
   const handleSelectKey = async () => {
     if (window.aistudio && window.aistudio.openSelectKey) {
@@ -97,15 +160,38 @@ const App = () => {
   const handleAnalyze = async () => {
     if (!dreamState.rawText.trim() && dreamState.attachments.length === 0) return;
 
-    setDreamState(prev => ({ ...prev, isAnalyzing: true, error: null }));
+    setDreamState(prev => ({ ...prev, isAnalyzing: true, error: null, progress: 0, progressStatus: 'Preparing...' }));
+    
+    // Simulate progress since APIs don't emit it for text gen
+    const interval = setInterval(() => {
+        setDreamState(prev => {
+           if (prev.progress >= 90) return prev;
+           let msg = prev.progressStatus;
+           if (prev.progress > 20) msg = "Ingesting memory...";
+           if (prev.progress > 50) msg = "Decoding symbols...";
+           if (prev.progress > 80) msg = "Synthesizing interpretation...";
+           return { ...prev, progress: prev.progress + 5, progressStatus: msg };
+        });
+    }, 500);
+
     try {
-      const analysis = await analyzeDreamText(dreamState.rawText, dreamState.attachments);
+      let analysis;
+      if (generationMode === 'local') {
+          if (!isOllamaConnected) throw new Error("Ollama not detected. Ensure it is running.");
+          analysis = await analyzeDreamTextOllama(dreamState.rawText, dreamState.attachments);
+      } else {
+          analysis = await analyzeDreamText(dreamState.rawText, dreamState.attachments);
+      }
+      
+      clearInterval(interval);
       setDreamState(prev => ({ 
         ...prev, 
         analysis, 
-        isAnalyzing: false 
+        isAnalyzing: false,
+        progress: 100 
       }));
     } catch (err: any) {
+      clearInterval(interval);
       setDreamState(prev => ({ 
         ...prev, 
         isAnalyzing: false, 
@@ -114,16 +200,70 @@ const App = () => {
     }
   };
 
-  const handleGenerateImage = async () => {
+  const initiateGenerateImage = () => {
+    if (!dreamState.analysis?.visualPrompt) return;
+    setShowConfirmDialog(true);
+  };
+
+  const executeGenerateImage = async () => {
+    setShowConfirmDialog(false);
     if (!dreamState.analysis?.visualPrompt) return;
 
-    setDreamState(prev => ({ ...prev, isGeneratingImage: true, error: null }));
+    setDreamState(prev => ({ ...prev, isGeneratingImage: true, error: null, progress: 0, progressStatus: 'Queueing...' }));
     try {
-      const url = await generateDreamImage(dreamState.analysis.visualPrompt);
+      let url: string;
+      
+      if (generationMode === 'local') {
+          if (!isComfyConnected) throw new Error("ComfyUI not connected. Make sure it is running.");
+          
+          // Check for input image for Img2Img
+          const inputImage = dreamState.attachments.find(a => a.mimeType.startsWith('image/'))?.file;
+          
+          // Pass callback for progress updates AND input image
+          const startTime = Date.now();
+          
+          url = await generateComfyImage(
+              dreamState.analysis.visualPrompt, 
+              (val, max) => {
+                  const pct = (val / max) * 100;
+                  
+                  // Calculate ETA
+                  const elapsed = Date.now() - startTime;
+                  if (val > 0) {
+                      const msPerStep = elapsed / val;
+                      const remainingSteps = max - val;
+                      const etaSec = Math.ceil((msPerStep * remainingSteps) / 1000);
+                      setDreamState(prev => ({ 
+                          ...prev, 
+                          progress: pct, 
+                          progressStatus: `Sampling Step ${val}/${max} (~${etaSec}s remaining)...` 
+                      }));
+                  } else {
+                      setDreamState(prev => ({ 
+                          ...prev, 
+                          progress: pct, 
+                          progressStatus: `Sampling Step ${val}/${max}...` 
+                      }));
+                  }
+              },
+              inputImage,
+              comfySettings
+          );
+          
+          const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+          console.log(`Generation Completed in ${totalTime}s`);
+          
+          // Update status immediately for local
+          setDreamState(prev => ({ ...prev, progressStatus: `Completed in ${totalTime}s` }));
+      } else {
+          url = await generateDreamImage(dreamState.analysis.visualPrompt);
+      }
+
       setDreamState(prev => ({ 
         ...prev, 
         generatedImageUrl: url, 
-        isGeneratingImage: false 
+        isGeneratingImage: false,
+        progress: 100 
       }));
     } catch (err: any) {
       setDreamState(prev => ({ 
@@ -136,6 +276,12 @@ const App = () => {
 
   const handleGenerateVideo = async () => {
     if (!dreamState.analysis?.visualPrompt) return;
+
+    // For now, video is still Cloud only (Veo only)
+    if (generationMode === 'local') {
+        alert("Video generation is currently only supported in Cloud mode (Veo).");
+        return;
+    }
 
     // Double check key before starting expensive Veo call
     if (!hasApiKey) {
@@ -183,12 +329,13 @@ const App = () => {
        isGeneratingImage: false,
        isGeneratingVideo: false,
        error: null,
+       progress: 0,
+       progressStatus: ''
      });
   };
 
   return (
     <div className="min-h-screen text-slate-100 p-4 md:p-8 relative">
-      
       <div className="max-w-7xl mx-auto relative z-10">
         
         {/* Header */}
@@ -209,12 +356,39 @@ const App = () => {
               </p>
             </div>
           </div>
-          <button 
-             className="mt-6 md:mt-0 px-6 py-2 rounded-none border border-cyan-500 text-cyan-500 font-mono text-xs uppercase hover:bg-cyan-500 hover:text-black transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)] hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]"
-             onClick={resetInterface}
-          >
-            [ Reset_Interface ]
-          </button>
+          
+          <div className="flex items-center gap-4 mt-6 md:mt-0">
+              {/* Mode Toggle */}
+              <div className="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700">
+                  <button 
+                      onClick={() => setGenerationMode('cloud')}
+                      className={`px-3 py-1 text-xs font-mono rounded-md transition-all ${generationMode === 'cloud' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                      CLOUD
+                  </button>
+                  <button 
+                      onClick={() => setGenerationMode('local')}
+                      className={`px-3 py-1 text-xs font-mono rounded-md transition-all flex items-center gap-2 ${generationMode === 'local' ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                      LOCAL
+                      <div className="flex gap-1">
+                          {/* ComfyUI Dot */}
+                          <span title="ComfyUI" className={`w-2 h-2 rounded-full ${isComfyConnected ? 'bg-green-300 animate-pulse' : 'bg-red-500'}`}></span>
+                          {/* Ollama Dot */}
+                          <div className="relative group/ollama">
+                              <span className={`w-2 h-2 rounded-full block ${isOllamaConnected ? 'bg-blue-300 animate-pulse' : 'bg-red-500'}`}></span>
+                          </div>
+                      </div>
+                  </button>
+              </div>
+
+              <button 
+                className="px-6 py-2 rounded-none border border-cyan-500 text-cyan-500 font-mono text-xs uppercase hover:bg-cyan-500 hover:text-black transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)] hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]"
+                onClick={resetInterface}
+              >
+                [ Reset_Interface ]
+              </button>
+          </div>
         </header>
 
         {/* Error Banner */}
@@ -295,27 +469,30 @@ const App = () => {
                   )}
                 </div>
                 
-                <div className="mt-6 flex justify-end">
-                  <button
-                    onClick={handleAnalyze}
-                    disabled={(!dreamState.rawText.trim() && dreamState.attachments.length === 0) || dreamState.isAnalyzing}
-                    className={`
-                      px-8 py-4 font-bold uppercase tracking-widest text-sm transition-all flex items-center gap-3 w-full justify-center
-                      ${(!dreamState.rawText.trim() && dreamState.attachments.length === 0)
-                        ? 'bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed' 
-                        : dreamState.isAnalyzing
-                          ? 'bg-slate-800 border border-purple-500 text-purple-400 cursor-wait'
-                          : 'bg-purple-600 hover:bg-purple-500 text-white border border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]'
-                      }
-                    `}
-                  >
-                    {dreamState.isAnalyzing ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Zap className="w-4 h-4" />
-                    )}
-                    {dreamState.isAnalyzing ? 'Processing...' : 'Analyze_Data'}
-                  </button>
+                <div className="mt-6">
+                  {dreamState.isAnalyzing ? (
+                      <ProgressBar 
+                         progress={dreamState.progress} 
+                         label="ANALYZING" 
+                         statusText={dreamState.progressStatus} 
+                         color="purple" 
+                      />
+                  ) : (
+                      <button
+                        onClick={handleAnalyze}
+                        disabled={!dreamState.rawText.trim() && dreamState.attachments.length === 0}
+                        className={`
+                          px-8 py-4 font-bold uppercase tracking-widest text-sm transition-all flex items-center gap-3 w-full justify-center
+                          ${(!dreamState.rawText.trim() && dreamState.attachments.length === 0)
+                            ? 'bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed' 
+                            : 'bg-purple-600 hover:bg-purple-500 text-white border border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]'
+                          }
+                        `}
+                      >
+                        <Zap className="w-4 h-4" />
+                        Analyze_Data
+                      </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -331,10 +508,10 @@ const App = () => {
                   <span>STEP_01</span> <span className="text-cyan-600">INGEST_MEMORY + ASSETS</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>STEP_02</span> <span className="text-purple-600">SEMANTIC_DECODE (GEMINI)</span>
+                  <span>STEP_02</span> <span className="text-purple-600">SEMANTIC_DECODE (GEMINI/OLLAMA)</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>STEP_03</span> <span className="text-pink-600">VISUAL_SYNTHESIS (IMAGEN/VEO)</span>
+                  <span>STEP_03</span> <span className="text-pink-600">VISUAL_SYNTHESIS (COMFYUI/VEO)</span>
                 </li>
               </ul>
             </div>
@@ -350,11 +527,12 @@ const App = () => {
                   videoUrl={dreamState.generatedVideoUrl}
                   isGeneratingImage={dreamState.isGeneratingImage}
                   isGeneratingVideo={dreamState.isGeneratingVideo}
-                  onGenerateImage={handleGenerateImage}
+                  onGenerateImage={initiateGenerateImage}
                   onGenerateVideo={handleGenerateVideo}
                   hasAnalysis={!!dreamState.analysis}
                   videoEnabled={hasApiKey}
                   onSelectKey={handleSelectKey}
+                  progress={dreamState.progress}
                 />
               </>
             ) : (
@@ -370,6 +548,26 @@ const App = () => {
 
         </div>
       </div>
+      
+      {/* Dynamic Settings Panel (Local Mode Only) */}
+      {generationMode === 'local' && (
+        <SettingsPanel 
+          settings={comfySettings} 
+          onSettingsChange={setComfySettings} 
+          isOpen={isSettingsOpen} 
+          onToggle={() => setIsSettingsOpen(!isSettingsOpen)} 
+          availableModels={availableModels}
+        />
+      )}
+
+    {/* Confirmation Dialog */}
+    <ConfirmDialog 
+      isOpen={showConfirmDialog}
+      onCancel={() => setShowConfirmDialog(false)}
+      onConfirm={executeGenerateImage}
+      settings={comfySettings}
+      workflowType={dreamState.attachments.some(a => a.mimeType.startsWith('image/')) ? 'Image-to-Image' : 'Text-to-Image'}
+    />
     </div>
   );
 };

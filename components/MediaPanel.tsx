@@ -1,5 +1,7 @@
 import React from 'react';
 import { Image as ImageIcon, Video, Loader2, Play, AlertCircle, Cpu } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import ProgressBar from './ProgressBar';
 
 interface MediaPanelProps {
   imageUrl: string | null;
@@ -11,6 +13,7 @@ interface MediaPanelProps {
   hasAnalysis: boolean;
   videoEnabled: boolean;
   onSelectKey: () => void;
+  progress?: number;
 }
 
 const MediaPanel: React.FC<MediaPanelProps> = ({
@@ -22,7 +25,8 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
   onGenerateVideo,
   hasAnalysis,
   videoEnabled,
-  onSelectKey
+  onSelectKey,
+  progress = 0
 }) => {
   return (
     <div className="space-y-6">
@@ -94,20 +98,38 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
         
         {/* Image Card */}
         <div className="group relative bg-black border border-slate-800 rounded-lg overflow-hidden min-h-[300px] flex items-center justify-center">
-          {imageUrl ? (
-            <>
-              <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 border-2 border-cyan-500/0 group-hover:border-cyan-500/50 transition-all pointer-events-none"></div>
-              <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <p className="text-cyan-400 text-xs font-mono">SOURCE: GEMINI-3-PRO-IMAGE</p>
+          <AnimatePresence mode="wait">
+            {isGeneratingImage ? (
+                <motion.div 
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-20 p-8"
+                >
+                    <div className="w-full max-w-xs space-y-4">
+                        <div className="mx-auto w-16 h-16 border-4 border-cyan-900/30 border-t-cyan-400 rounded-full animate-spin"></div>
+                        <p className="text-cyan-400 font-mono text-xs text-center animate-pulse tracking-widest">
+                            LATENT_DIFFUSION_IN_PROGRESS...
+                        </p>
+                        <ProgressBar progress={progress} label="SAMPLING" statusText="Denoising latents..." color="cyan" />
+                    </div>
+                </motion.div>
+            ) : imageUrl ? (
+              <motion.div key="image" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full"> 
+                <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 border-2 border-cyan-500/0 group-hover:border-cyan-500/50 transition-all pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="text-cyan-400 text-xs font-mono">SOURCE: GENERATED_VISUAL</p>
+                </div>
+              </motion.div>
+            ) : (
+              <div key="empty" className="text-center p-6 opacity-40">
+                <ImageIcon className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+                <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">[ No Signal ]</p>
               </div>
-            </>
-          ) : (
-            <div className="text-center p-6 opacity-40">
-              <ImageIcon className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-              <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">[ No Signal ]</p>
-            </div>
-          )}
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Video Card */}

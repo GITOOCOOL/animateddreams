@@ -15,6 +15,20 @@ export interface DreamAttachment {
   mimeType: string;
 }
 
+export interface ComfySettings {
+  model: string;
+  steps: number;
+  cfg: number;
+  sampler: string;
+  scheduler: string;
+  denoise: number;
+  width: number;
+  height: number;
+  lora?: string;
+  loraStrength?: number;
+  seed?: number; // Optional seed override
+}
+
 export interface DreamState {
   rawText: string;
   attachments: DreamAttachment[];
@@ -25,4 +39,13 @@ export interface DreamState {
   isGeneratingImage: boolean;
   isGeneratingVideo: boolean;
   error: string | null;
+}
+
+declare global {
+  interface Window {
+    aistudio?: {
+      hasSelectedApiKey?: () => Promise<boolean>;
+      openSelectKey?: () => Promise<void>;
+    };
+  }
 }
