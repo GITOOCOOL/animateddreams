@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database and Storage
+dreams.db
+saved_dreams/
+check_db.cjs
+debug_comfy.cjs

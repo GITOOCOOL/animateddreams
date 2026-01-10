@@ -11,19 +11,19 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
     <div className="relative group animate-fade-in">
       {/* Glow Backdrop */}
       <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-      
+
       <div className="relative bg-black border border-cyan-500/30 rounded-lg p-6 shadow-2xl overflow-hidden">
         {/* Decorative Header Line */}
         <div className="flex items-center gap-2 mb-3">
-        {analysis.interpretation.includes("neural interface failed") ? (
-             <AlertTriangle className="w-5 h-5 text-orange-500" />
-        ) : (
-             <Sparkles className="w-5 h-5 text-cyan-400" />
-        )}
-        <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-500">
-          {analysis.title}
-        </h3>
-      </div>
+          {analysis?.interpretation?.includes("neural interface failed") ? (
+            <AlertTriangle className="w-5 h-5 text-orange-500" />
+          ) : (
+            <Sparkles className="w-5 h-5 text-cyan-400" />
+          )}
+          <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-500">
+            {analysis.title}
+          </h3>
+        </div>
 
         {/* Summary */}
         <div className="mb-8 relative pl-4 border-l-2 border-purple-500">
@@ -34,7 +34,7 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          
+
           {/* Interpretation */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-cyan-400 font-bold uppercase text-xs tracking-wider">
@@ -48,14 +48,14 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
 
           {/* Symbolism */}
           <div className="space-y-3">
-             <div className="flex items-center gap-2 text-pink-500 font-bold uppercase text-xs tracking-wider">
+            <div className="flex items-center gap-2 text-pink-500 font-bold uppercase text-xs tracking-wider">
               <Tag className="w-4 h-4" />
               <span>Extracted Tokens</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {analysis.symbolism.map((symbol, idx) => (
-                <span 
-                  key={idx} 
+              {analysis.symbolism?.map((symbol, idx) => (
+                <span
+                  key={idx}
                   className="px-2 py-1 bg-pink-900/20 border border-pink-500/40 text-pink-300 text-xs font-mono uppercase hover:bg-pink-500/20 transition-colors cursor-default"
                 >
                   #{symbol}
@@ -64,7 +64,7 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
             </div>
           </div>
         </div>
-        
+
         {/* Visual Prompt Terminal */}
         <div className="bg-black border border-slate-800 rounded p-4 font-mono text-xs relative">
           <div className="absolute top-0 left-0 bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400 uppercase tracking-wider">
