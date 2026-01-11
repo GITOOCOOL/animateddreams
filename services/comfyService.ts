@@ -246,20 +246,30 @@ export const generateComfyImage = async (
   onProgress?: (val: number, max: number) => void,
   onActiveNode?: (nodeId: string | null) => void,
   inputImage?: File,
-  settings?: ComfySettings
+  settings?: ComfySettings,
+  onLog?: (message: string) => void
 ): Promise<string> => {
+
+  const log = (msg: string) => {
+    console.log(msg);
+    if (onLog) onLog(msg);
+  };
+
+  log(`[System] Initializing Neural Generation Sequence...`);
+  if (settings) log(`[Settings] Model: ${settings.model}, Steps: ${settings.steps}, Sampler: ${settings.sampler}`);
 
   let workflowTmpl: any = workflowTemplate;
   let uploadedFilename: string | undefined;
 
   // 1. If we have an input image, upload it and switch workflow
   if (inputImage) {
-    console.log("Input image detected, uploading to ComfyUI...");
+    log("[Input] Input image detected, uploading to Neural Core...");
     try {
       uploadedFilename = await uploadImageToComfy(inputImage);
       workflowTmpl = img2imgWorkflowTemplate;
-      console.log("Image uploaded:", uploadedFilename, "Switched to Img2Img workflow");
+      log(`[Upload] Image uploaded successfully: ${uploadedFilename}. Switching to Img2Img workflow.`);
     } catch (err) {
+      log(`[Error] Failed to upload input image, falling back to Txt2Img: ${err}`);
       console.error("Failed to upload input image, falling back to Txt2Img:", err);
     }
   }
@@ -272,6 +282,7 @@ export const generateComfyImage = async (
     const host = window.location.host;
     const wsUrl = `${protocol}//${host}${COMFY_WS_HOST}?clientId=${clientId}`;
 
+    log(`[Connection] Connecting to WebSocket: ${wsUrl}`);
     const socket = new WebSocket(wsUrl);
     let promptId: string | null = null;
 
@@ -283,9 +294,10 @@ export const generateComfyImage = async (
     }, 5000);
 
     socket.onopen = async () => {
-      console.log("Connected to ComfyUI WebSocket via Proxy", clientId);
+      log(`[Connection] Connected to Neural Core (ID: ${clientId})`);
       // ... (queue logic remains same)
       try {
+        log(`[Queue] Sending prompt configuration to KSampler...`);
         const queueRes = await fetch(`${COMFY_HOST}/prompt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -299,8 +311,9 @@ export const generateComfyImage = async (
 
         const queueData: ComfyQueueResponse = await queueRes.json();
         promptId = queueData.prompt_id;
-        console.log("Prompt Queued with ID:", promptId);
+        log(`[Queue] Prompt successfully queued (ID: ${promptId})`);
       } catch (err) {
+        log(`[Error] Failed to queue prompt: ${err}`);
         clearInterval(pingInterval);
         socket.close();
         reject(err);
@@ -313,29 +326,35 @@ export const generateComfyImage = async (
       // Progress Update
       if (message.type === 'progress' && message.data.prompt_id === promptId && onProgress) {
         onProgress(message.data.value, message.data.max);
+        if (message.data.value === 1) log(`[Progress] Started sampling...`);
       }
 
       // Active Node Update
       if (message.type === 'executing' && message.data.prompt_id === promptId) {
         if (onActiveNode) {
-          onActiveNode(message.data.node); // Pass the current node ID (or null when done)
+          const nodeId = message.data.node;
+          onActiveNode(nodeId);
+          if (nodeId) log(`[Node] Executing Node ID: ${nodeId}`);
         }
       }
 
       // Execution Finished
       if (promptId && message.type === 'executing' && message.data.node === null && message.data.prompt_id === promptId) {
-        // ... (completion logic)
+        log(`[Complete] Generation finished. Post-processing...`);
         clearInterval(pingInterval);
         console.log("ComfyUI Execution Finished for ID:", promptId);
         socket.close();
 
         try {
           await new Promise(r => setTimeout(r, 1000));
+          log(`[Storage] Retrieving high-res output...`);
           const history = await getHistory(promptId);
           const imageUrl = extractImageUrl(history, promptId);
+          log(`[Success] Image generated: ${imageUrl}`);
           console.log("Generated Image URL:", imageUrl);
           resolve(imageUrl);
         } catch (err) {
+          log(`[Error] Failed to retrieve final image: ${err}`);
           console.error("Failed to extract image:", err);
           reject(err);
         }
@@ -343,11 +362,15 @@ export const generateComfyImage = async (
     };
 
     socket.onerror = (err) => {
+      log(`[Socket Error] WebSocket error occurred.`);
       console.error("WebSocket error:", err);
       clearInterval(pingInterval);
     };
 
-    socket.onclose = () => clearInterval(pingInterval);
+    socket.onclose = () => {
+      log(`[Connection] WebSocket closed.`);
+      clearInterval(pingInterval);
+    };
   });
 };
 

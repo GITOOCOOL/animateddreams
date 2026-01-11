@@ -21,7 +21,7 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
    const getNodeStyle = (ids: string | string[]) => {
       const active = isActive(ids);
       return `
-        relative p-4 rounded-xl border transition-all duration-300 flex flex-col items-center justify-center gap-2 min-w-[140px] z-10
+        relative p-4 rounded-xl border transition-all duration-300 flex flex-col items-center justify-center gap-2 min-w-[140px] z-10 flex-shrink-0
         ${active
             ? 'bg-purple-900/50 border-purple-400 shadow-[0_0_30px_rgba(168,85,247,0.5)] scale-110 animate-pulse'
             : 'bg-slate-900 border-slate-700 text-slate-400 opacity-80'}
@@ -29,8 +29,8 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
    };
 
    const Connection = ({ vertical = false }: { vertical?: boolean }) => (
-      <div className={`relative overflow-hidden group ${vertical ? 'w-0.5 h-8 my-1' : 'flex-1 h-0.5 mx-2'} bg-slate-800/50 rounded-full`}>
-         <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent w-full ${vertical ? 'animate-flow-vertical' : 'animate-flow-horizontal'}`}></div>
+      <div className={`relative overflow-hidden group ${vertical ? 'w-0.5 h-8 my-1' : 'flex-1 h-0.5 mx-2 min-w-[20px]'} bg-slate-800/80 rounded-full`}>
+         <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent w-full opacity-80 shadow-[0_0_10px_rgba(34,211,238,0.5)] ${vertical ? 'animate-flow-vertical' : 'animate-flow-horizontal'}`}></div>
          <style>{`
            @keyframes flow-horizontal {
              0% { transform: translateX(-100%); }
@@ -41,21 +41,21 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
              100% { transform: translateY(100%); }
            }
            .animate-flow-horizontal {
-             animation: flow-horizontal 1.5s linear infinite;
+             animation: flow-horizontal 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
            }
            .animate-flow-vertical {
-             animation: flow-vertical 1.5s linear infinite;
+             animation: flow-vertical 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
            }
          `}</style>
       </div>
    );
 
    return (
-      <div className="w-full bg-black/20 rounded-xl p-8 overflow-x-auto">
-         <div className="flex items-center justify-between min-w-[800px] gap-4 relative">
+      <div className="w-full h-full bg-black/40 rounded-xl p-4 border border-slate-800/50 backdrop-blur-sm flex items-center justify-center overflow-hidden">
+         <div className="w-full flex items-center justify-between gap-0">
 
             {/* Step 1: Input Latent or Image */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 flex-shrink-0">
                {workflowType === 'Image-to-Image' ? (
                   <div className={getNodeStyle("11")}>
                      <ImageIcon className="w-6 h-6 text-pink-400" />
@@ -88,7 +88,7 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
             <Connection />
 
             {/* Step 2: Model & Prompts */}
-            <div className="flex flex-col gap-4 items-center">
+            <div className="flex flex-col gap-4 items-center flex-shrink-0">
                <div className={getNodeStyle(["4", "40"])}>
                   <Database className="w-6 h-6 text-cyan-400" />
                   <span className="text-[10px] font-mono uppercase font-bold">Checkpoint</span>
@@ -123,50 +123,56 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
             <Connection />
 
             {/* Step 3: KSampler (The Brain) */}
-            <div className={getNodeStyle("3")}>
-               <Activity className={`w-8 h-8 ${isActive("3") ? 'text-purple-300 animate-spin-slow' : 'text-purple-600'}`} />
-               <span className="text-[10px] font-mono uppercase font-bold">KSampler</span>
-               <div className="text-[8px] text-slate-500 flex flex-col items-center">
-                  <span>{settings.steps} Steps</span>
-                  <span>CFG: {settings.cfg}</span>
-                  <span>{settings.sampler}</span>
-                  {workflowType === 'Image-to-Image' && <span className="text-pink-400">Denoise: {settings.denoise}</span>}
+            <div className="flex-shrink-0">
+               <div className={getNodeStyle("3")}>
+                  <Activity className={`w-8 h-8 ${isActive("3") ? 'text-purple-300 animate-spin-slow' : 'text-purple-600'}`} />
+                  <span className="text-[10px] font-mono uppercase font-bold">KSampler</span>
+                  <div className="text-[8px] text-slate-500 flex flex-col items-center">
+                     <span>{settings.steps} Steps</span>
+                     <span>CFG: {settings.cfg}</span>
+                     <span>{settings.sampler}</span>
+                     {workflowType === 'Image-to-Image' && <span className="text-pink-400">Denoise: {settings.denoise}</span>}
+                  </div>
                </div>
             </div>
 
             <Connection />
 
             {/* Step 4: VAE Decode */}
-            <div className={getNodeStyle("8")}>
-               <Cpu className="w-6 h-6 text-cyan-600" />
-               <span className="text-[10px] font-mono uppercase font-bold">VAE Decode</span>
+            <div className="flex-shrink-0">
+               <div className={getNodeStyle("8")}>
+                  <Cpu className="w-6 h-6 text-cyan-600" />
+                  <span className="text-[10px] font-mono uppercase font-bold">VAE Decode</span>
+               </div>
             </div>
 
             <Connection />
 
             {/* Step 5: Save Image */}
-            <div className={getNodeStyle("9")}>
-               <Download className="w-6 h-6 text-green-500" />
-               <span className="text-[10px] font-mono uppercase font-bold">Save Image</span>
-               {outputImageUrl && (
-                  <div className="w-20 h-20 mt-1 rounded overflow-hidden border border-green-500/50 shadow-lg shadow-green-900/50">
-                     <img src={outputImageUrl} alt="Output" className="w-full h-full object-cover" />
-                  </div>
-               )}
+            <div className="flex-shrink-0">
+               <div className={getNodeStyle("9")}>
+                  <Download className="w-6 h-6 text-green-500" />
+                  <span className="text-[10px] font-mono uppercase font-bold">Save Image</span>
+                  {outputImageUrl && (
+                     <div className="w-20 h-20 mt-1 rounded overflow-hidden border border-green-500/50 shadow-lg shadow-green-900/50">
+                        <img src={outputImageUrl} alt="Output" className="w-full h-full object-cover" />
+                     </div>
+                  )}
+               </div>
             </div>
 
          </div>
 
-         {/* Legend */}
-         <div className="flex justify-center gap-6 mt-8 border-t border-slate-800 pt-4">
-            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+         {/* Legend (Absolute positioned or outside flow to preserve center alignment) */}
+         <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-6 pointer-events-none">
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-black/50 px-2 rounded-full">
                <span className="w-2 h-2 rounded-full bg-slate-700"></span> Idle
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-black/50 px-2 rounded-full">
                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> Processing
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-500">
-               <span className="w-2 h-2 rounded-full bg-cyan-500"></span> Model Data
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-black/50 px-2 rounded-full">
+               <span className="w-2 h-2 rounded-full bg-cyan-500"></span> Data
             </div>
          </div>
       </div>

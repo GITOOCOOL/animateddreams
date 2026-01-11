@@ -49,7 +49,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-8 right-8 z-50 bg-slate-900 border border-slate-700 p-3 rounded-full text-slate-400 hover:text-white hover:border-cyan-500 shadow-xl transition-all"
+        className="fixed bottom-8 right-8 z-50 bg-slate-900 border border-slate-700 p-3 rounded-full text-slate-400 hover:text-white hover:border-cyan-500 shadow-xl transition-all flex items-center justify-center"
         title="Generation Settings"
       >
         <Sliders className="w-6 h-6" />
