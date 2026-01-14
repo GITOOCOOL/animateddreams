@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     server: {
-      port: 3000,
+      port: 5173,
       host: '0.0.0.0',
       proxy: {
         '/api/comfy-ws': {
@@ -39,6 +39,14 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:3001',
           changeOrigin: true
         },
+        '/api/ai': {
+          target: 'http://localhost:3001',
+          changeOrigin: true
+        },
+        '/api/auth': {
+          target: 'http://localhost:3001',
+          changeOrigin: true
+        },
         '/storage': {
           target: 'http://localhost:3001',
           changeOrigin: true
@@ -47,8 +55,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      // 'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY), // REMOVED: Moved to backend
     },
     resolve: {
       alias: {

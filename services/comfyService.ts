@@ -1,10 +1,23 @@
 import workflowTemplate from '../workflow_template.json';
 import img2imgWorkflowTemplate from '../workflow_img2img.json';
-import { ComfySettings } from '../types';
+import svdWorkflowTemplate from './workflow_svd.json';
+import { ComfySettings, VideoSettings } from '../types';
 
-// Use local proxy path to avoid CORS/Mixed Content issues
-const COMFY_HOST = '/api/comfy';
-const COMFY_WS_HOST = '/api/comfy-ws';
+// Helper to get WS URL from HTTP Host
+const getWsUrl = (host: string, clientId: string) => {
+    if (host.startsWith('/')) {
+        // It's a relative path (proxy), use window.location
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = window.location.host;
+        // Assume standard proxy setup where /api/comfy-ws maps to /ws on target
+        // But here we just hit the proxy endpoint on our server
+        return `${protocol}//${wsHost}/api/comfy-ws?clientId=${clientId}`;
+    }
+    // It's a full URL (http://ip:port)
+    const url = new URL(host);
+    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${url.host}/ws?clientId=${clientId}`;
+};
 
 // ComfyUI API types
 interface ComfyQueueResponse {
@@ -30,9 +43,9 @@ interface ComfyHistoryResponse {
 /**
  * Checks if the ComfyUI server is reachable.
  */
-export const checkComfyConnection = async (): Promise<boolean> => {
+export const checkComfyConnection = async (host: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${COMFY_HOST}/system_stats`);
+    const response = await fetch(`${host}/system_stats`);
     return response.ok;
   } catch (error) {
     console.warn("ComfyUI connection check failed:", error);
@@ -41,11 +54,25 @@ export const checkComfyConnection = async (): Promise<boolean> => {
 };
 
 /**
+ * Fetches system stats (including version/OS info if available).
+ */
+export const getSystemStats = async (host: string): Promise<any> => {
+  try {
+    const response = await fetch(`${host}/system_stats`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    return null;
+  }
+};
+
+
+/**
  * Fetches the list of available checkpoint models from ComfyUI.
  */
-export const getAvailableModels = async (): Promise<string[]> => {
+export const getAvailableModels = async (host: string): Promise<string[]> => {
   try {
-    const response = await fetch(`${COMFY_HOST}/object_info/CheckpointLoaderSimple`);
+    const response = await fetch(`${host}/object_info/CheckpointLoaderSimple`);
     if (!response.ok) throw new Error("Failed to fetch object info");
 
     const data = await response.json();
@@ -61,12 +88,12 @@ export const getAvailableModels = async (): Promise<string[]> => {
 /**
  * Uploads an image to ComfyUI for use in generation.
  */
-const uploadImageToComfy = async (file: File | Blob): Promise<string> => {
+const uploadImageToComfy = async (file: File | Blob, host: string): Promise<string> => {
   const formData = new FormData();
   formData.append('image', file);
   formData.append('overwrite', 'true');
 
-  const res = await fetch(`${COMFY_HOST}/upload/image`, {
+  const res = await fetch(`${host}/upload/image`, {
     method: 'POST',
     body: formData
   });
@@ -81,12 +108,12 @@ const uploadImageToComfy = async (file: File | Blob): Promise<string> => {
 /**
  * Fetches the list of available LoRAs from ComfyUI.
  */
-export const getAvailableLoras = async (): Promise<string[]> => {
+export const getAvailableLoras = async (host: string): Promise<string[]> => {
   try {
     // 1. Direct Fetch Strategy
     try {
       console.log("Fetching LoRAs from LoraLoader...");
-      const directRes = await fetch(`${COMFY_HOST}/object_info/LoraLoader`);
+      const directRes = await fetch(`${host}/object_info/LoraLoader`);
       if (directRes.ok) {
         const data = await directRes.json();
         // Debug log
@@ -107,7 +134,7 @@ export const getAvailableLoras = async (): Promise<string[]> => {
 
     // 2. Fallback Scan Strategy
     console.log("Falling back to full object scan...");
-    const response = await fetch(`${COMFY_HOST}/object_info`);
+    const response = await fetch(`${host}/object_info`);
     if (!response.ok) throw new Error("Failed to fetch object info");
 
     const data = await response.json();
@@ -247,7 +274,8 @@ export const generateComfyImage = async (
   onActiveNode?: (nodeId: string | null) => void,
   inputImage?: File,
   settings?: ComfySettings,
-  onLog?: (message: string) => void
+  onLog?: (message: string) => void,
+  host: string = '/api/comfy' // Default for backward compatibility
 ): Promise<string> => {
 
   const log = (msg: string) => {
@@ -265,7 +293,7 @@ export const generateComfyImage = async (
   if (inputImage) {
     log("[Input] Input image detected, uploading to Neural Core...");
     try {
-      uploadedFilename = await uploadImageToComfy(inputImage);
+      uploadedFilename = await uploadImageToComfy(inputImage, host);
       workflowTmpl = img2imgWorkflowTemplate;
       log(`[Upload] Image uploaded successfully: ${uploadedFilename}. Switching to Img2Img workflow.`);
     } catch (err) {
@@ -278,9 +306,7 @@ export const generateComfyImage = async (
   const clientId = crypto.randomUUID();
 
   return new Promise((resolve, reject) => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}${COMFY_WS_HOST}?clientId=${clientId}`;
+    const wsUrl = getWsUrl(host, clientId);
 
     log(`[Connection] Connecting to WebSocket: ${wsUrl}`);
     const socket = new WebSocket(wsUrl);
@@ -298,7 +324,7 @@ export const generateComfyImage = async (
       // ... (queue logic remains same)
       try {
         log(`[Queue] Sending prompt configuration to KSampler...`);
-        const queueRes = await fetch(`${COMFY_HOST}/prompt`, {
+        const queueRes = await fetch(`${host}/prompt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -348,8 +374,8 @@ export const generateComfyImage = async (
         try {
           await new Promise(r => setTimeout(r, 1000));
           log(`[Storage] Retrieving high-res output...`);
-          const history = await getHistory(promptId);
-          const imageUrl = extractImageUrl(history, promptId);
+          const history = await getHistory(promptId, host);
+          const imageUrl = extractImageUrl(history, promptId, host);
           log(`[Success] Image generated: ${imageUrl}`);
           console.log("Generated Image URL:", imageUrl);
           resolve(imageUrl);
@@ -374,13 +400,13 @@ export const generateComfyImage = async (
   });
 };
 
-const getHistory = async (promptId: string): Promise<ComfyHistoryResponse> => {
-  const res = await fetch(`${COMFY_HOST}/history/${promptId}`);
+const getHistory = async (promptId: string, host: string): Promise<ComfyHistoryResponse> => {
+  const res = await fetch(`${host}/history/${promptId}`);
   if (!res.ok) throw new Error("Failed to get history");
   return await res.json();
 };
 
-const extractImageUrl = (history: ComfyHistoryResponse, promptId: string): string => {
+const extractImageUrl = (history: ComfyHistoryResponse, promptId: string, host: string): string => {
   const promptHistory = history[promptId];
   if (!promptHistory || !promptHistory.outputs) throw new Error("No output found in history");
 
@@ -390,11 +416,166 @@ const extractImageUrl = (history: ComfyHistoryResponse, promptId: string): strin
     const outputs = promptHistory.outputs[nodeId];
     if (outputs.images && outputs.images.length > 0) {
       const img = outputs.images[0];
-      // Use local proxy path to retrieve image
-      const url = `${COMFY_HOST}/view?filename=${img.filename}&subfolder=${img.subfolder}&type=${img.type}`;
+      // Use configured host path to retrieve image
+      const url = `${host}/view?filename=${img.filename}&subfolder=${img.subfolder}&type=${img.type}`;
       console.log("FINAL GENERATED URL:", url);
       return url;
     }
   }
   throw new Error("No image output found");
+};
+
+/**
+ * modifySvdWorkflow:
+ * Updates the SVD workflow with settings and input image.
+ */
+const modifySvdWorkflow = (baseWorkflow: any, inputFilename: string, settings?: VideoSettings) => {
+  const newWorkflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+  // Node 15: LoadImage (Input conditioning)
+  if (newWorkflow["15"] && newWorkflow["15"].inputs) {
+    newWorkflow["15"].inputs.image = inputFilename;
+  }
+
+  // Node 14: Checkpoint Model
+  if (settings && settings.model && newWorkflow["14"]) {
+      // If user selected "Google Veo", we might default to SVD since Veo isn't local.
+      // But if they selected a specific .safetensors, use it.
+      // For now, if "Google Veo" is selected in UI, we default to "svd_xt.safetensors" for local fallback
+      // or just pass it if user actually has a model named "Google Veo" (unlikely).
+      if (settings.model === 'Google Veo') {
+           newWorkflow["14"].inputs.ckpt_name = "svd_xt.safetensors"; 
+      } else {
+           newWorkflow["14"].inputs.ckpt_name = settings.model;
+      }
+  }
+
+  // Node 12: SVD Conditioning
+  if (newWorkflow["12"] && newWorkflow["12"].inputs && settings) {
+      newWorkflow["12"].inputs.video_frames = Math.min(25, settings.duration * settings.fps); // Frame count approximation
+      newWorkflow["12"].inputs.motion_bucket_id = settings.motionBucketId || 127;
+      newWorkflow["12"].inputs.fps = settings.fps || 6;
+  }
+
+  // Node 3: KSampler (Randomize seed)
+  if (newWorkflow["3"] && newWorkflow["3"].inputs) {
+      newWorkflow["3"].inputs.seed = Math.floor(Math.random() * 1000000000000);
+      
+      // We could add steps/cfg to VideoSettings if desired, using defaults for now
+  }
+
+  return newWorkflow;
+}
+
+export const generateComfyVideo = async (
+    inputImageUrl: string,
+    settings: VideoSettings,
+    onProgress?: (val: number, max: number) => void,
+    onLog?: (msg: string) => void,
+    host: string = '/api/comfy'
+): Promise<string> => {
+    const log = (msg: string) => {
+        console.log(msg);
+        if (onLog) onLog(msg);
+    };
+
+    log(`[Video] Initializing SVD Sequence...`);
+    
+    // We need the filename of the generated image currently in ComfyUI output.
+    // However, inputImageUrl from state might be a URL like http://host/view?filename=...
+    // We need to either re-upload it or extract the filename if it's already on server.
+    // Simplest robust way: Fetch the image blob from URL and re-upload to 'input' folder.
+    
+    let inputFilename = "example.png";
+
+    try {
+        log(`[Video] Preparing input frame from: ${inputImageUrl}`);
+        // If it's a Comfy URL, we can parse it.
+        const urlObj = new URL(inputImageUrl, window.location.origin);
+        const filenameParam = urlObj.searchParams.get("filename");
+        
+        if (filenameParam) {
+             // It's already on the server, but likely in 'output'. SVD LoadImage needs it?
+             // LoadImage usually looks in 'input'.
+             // We should fetch and re-upload to be safe and simple.
+             const res = await fetch(inputImageUrl);
+             const blob = await res.blob();
+             const file = new File([blob], "svd_init.png", { type: "image/png" });
+             inputFilename = await uploadImageToComfy(file, host);
+        } else {
+             // Remote URL or data URI
+             const res = await fetch(inputImageUrl);
+             const blob = await res.blob();
+             const file = new File([blob], "svd_init.png", { type: "image/png" });
+             inputFilename = await uploadImageToComfy(file, host);
+        }
+        log(`[Video] Input frame uploaded: ${inputFilename}`);
+
+    } catch (e) {
+        log(`[Error] Failed to prepare input image: ${e}`);
+        throw e;
+    }
+
+    const workflow = modifySvdWorkflow(svdWorkflowTemplate, inputFilename, settings);
+    const clientId = crypto.randomUUID();
+
+    return new Promise((resolve, reject) => {
+        const wsUrl = getWsUrl(host, clientId);
+
+        const socket = new WebSocket(wsUrl);
+        let promptId: string | null = null;
+
+        const pingInterval = setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping' }));
+        }, 5000);
+
+        socket.onopen = async () => {
+             try {
+                const queueRes = await fetch(`${host}/prompt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: workflow, client_id: clientId })
+                });
+
+                if (!queueRes.ok) throw new Error("Failed to queue video prompt");
+                const data = await queueRes.json();
+                promptId = data.prompt_id;
+                log(`[Video] Generation queued (ID: ${promptId})`);
+             } catch (e) {
+                 clearInterval(pingInterval);
+                 socket.close();
+                 reject(e);
+             }
+        };
+
+        socket.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+             
+            if (message.type === 'progress' && message.data.prompt_id === promptId && onProgress) {
+                onProgress(message.data.value, message.data.max);
+            }
+
+            if (promptId && message.type === 'executing' && message.data.node === null && message.data.prompt_id === promptId) {
+                 log("[Video] Generation Complete. Retrieving video...");
+                 clearInterval(pingInterval);
+                 socket.close();
+
+                 try {
+                     await new Promise(r => setTimeout(r, 1000));
+                     const history = await getHistory(promptId, host);
+                     // For SVD, output is SaveAnimatedWEBP (Node 9)
+                     // Re-use logic or custom extract
+                     const videoUrl = extractImageUrl(history, promptId, host); // Works for video nodes too usually if format is standard
+                     resolve(videoUrl);
+                 } catch (e) {
+                     reject(e);
+                 }
+            }
+        };
+        
+        socket.onerror = (e) => {
+             clearInterval(pingInterval);
+             reject(e);
+        };
+    });
 };

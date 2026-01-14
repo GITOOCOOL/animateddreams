@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const db = require('../db/database');
-const { authenticateToken } = require('../middleware/auth');
+const db = require('../db/database.cjs');
+const { authenticateToken } = require('../middleware/auth.cjs');
 
 // Storage Directory (Needs to be reachable here too or passed in)
 // For simplicity, defining it here again or export from index (cyclic dep risk).
@@ -28,8 +28,9 @@ async function handleMediaSave(dreamId, mediaItem) {
             const arrayBuffer = await response.arrayBuffer();
             fs.writeFileSync(localPath, Buffer.from(arrayBuffer));
         } else if (url.startsWith('/api/comfy')) {
-            // Fix relative URLs from Proxy
-            const comfyUrl = `http://127.0.0.1:8188${url.replace('/api/comfy', '')}`;
+            // Fix relative URLs from Proxy using the configured Host
+            const comfyHost = process.env.VITE_COMFY_API_HOST || 'http://127.0.0.1:8188';
+            const comfyUrl = `${comfyHost}${url.replace('/api/comfy', '')}`;
             const response = await fetch(comfyUrl);
             if (!response.ok) throw new Error(`Failed to fetch from ComfyUI`);
             const arrayBuffer = await response.arrayBuffer();

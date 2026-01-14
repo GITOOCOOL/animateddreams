@@ -28,8 +28,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (storedToken && storedUser) {
             setToken(storedToken);
             setUser(JSON.parse(storedUser));
+
+            // Verify with backend
+            fetch('/api/auth/verify', {
+                headers: { 'Authorization': `Bearer ${storedToken}` }
+            })
+            .then(res => {
+                if (!res.ok) {
+                    console.warn("Token invalid, logging out");
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('authUser');
+                    setToken(null);
+                    setUser(null);
+                }
+            })
+            .catch(() => {
+                // If network error, maybe keep login? Or safe fail?
+                // For now, assume if check fails, we keep session until proven wrong
+            })
+            .finally(() => setIsLoading(false));
+        } else {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     }, []);
 
     const login = (newToken: string, newUser: User) => {

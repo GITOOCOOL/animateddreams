@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db/database');
-const { JWT_SECRET } = require('../middleware/auth');
+const db = require('../db/database.cjs');
+const { JWT_SECRET } = require('../middleware/auth.cjs');
 
 router.post('/register', async (req, res) => {
     const { username, password } = req.body;
@@ -35,6 +35,11 @@ router.post('/login', (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ token, username: user.username, id: user.id });
     });
+});
+
+const { authenticateToken } = require('../middleware/auth.cjs');
+router.get('/verify', authenticateToken, (req, res) => {
+    res.json({ valid: true, user: req.user });
 });
 
 module.exports = router;

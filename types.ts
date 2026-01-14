@@ -29,6 +29,13 @@ export interface ComfySettings {
   seed?: number; // Optional seed override
 }
 
+export interface VideoSettings {
+  model: string;
+  fps: number;
+  duration: number; // Seconds (e.g., 6)
+  motionBucketId: number; // For SVD, usually 127
+}
+
 export interface DreamState {
   rawText: string;
   attachments: DreamAttachment[];
@@ -39,6 +46,7 @@ export interface DreamState {
   isGeneratingImage: boolean;
   isGeneratingVideo: boolean;
   error: string | null;
+  showFallbackConfirmation?: boolean;
 }
 
 declare global {

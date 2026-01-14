@@ -1,154 +1,54 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { DreamAnalysis, DreamAttachment } from "../types";
 
-/**
- * ARCHITECTURE NOTE FOR MERN STACK:
- * Currently, this prototype calls the Google GenAI SDK directly from the client.
- * To integrate with a MERN stack (Antigravity):
- * 1. Move these function implementations to your Node.js/Express backend controllers.
- * 2. Replace the client-side calls below with `fetch('/api/dreams/analyze', ...)` etc.
- * 3. Store the generated `DreamAnalysis` and media URLs in your MongoDB `Dream` schema.
- */
+const API_BASE = '/api/ai';
 
-// Helper to get a fresh client instance. 
-const getClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key not found in environment.");
-  }
-  return new GoogleGenAI({ apiKey });
+export const checkGeminiAvailability = async (): Promise<boolean> => {
+   try {
+     const response = await fetch(`${API_BASE}/availability`);
+     if (!response.ok) return false;
+     const data = await response.json();
+     return data.available === true;
+   } catch (error) {
+     console.warn("Gemini Availability Check Failed:", error);
+     return false;
+   }
 };
 
 /**
- * Analyzes the dream text using Gemini 3 Pro to extract meaning and create a visual prompt.
- * Accepts optional attachments (images/PDFs) for context.
+ * Analyzes the dream text using the backend API.
  */
-export const analyzeDreamText = async (dreamText: string, attachments: DreamAttachment[] = []): Promise<DreamAnalysis> => {
-  const ai = getClient();
-  
-  const systemPrompt = `
-    You are an expert dream interpreter and avant-garde visual artist. 
-    Analyze the following dream memory and any attached context (images of characters, places, documents).
-    
-    Provide:
-    1. A cryptic but evocative title.
-    2. A short, mysterious summary.
-    3. A psychological/symbolic interpretation (Jungian/Freudian mix).
-    4. A list of key symbols.
-    5. A highly descriptive, cinematic, and surreal visual prompt suitable for a high-end video generation AI (like Veo). Focus on lighting, atmosphere, texture, and surrealism.
-    
-    If images/documents are provided, use them to infer the visual style or specific details of characters/locations in the interpretation and visual prompt.
-    
-    Dream Memory: "${dreamText}"
-  `;
-
-  // Construct the multipart content
-  const parts: any[] = [{ text: systemPrompt }];
-
-  // Add attachments
-  attachments.forEach(att => {
-    parts.push({
-      inlineData: {
-        mimeType: att.mimeType,
-        data: att.base64
-      }
-    });
+export const analyzeDreamGemini = async (dreamText: string, attachments: DreamAttachment[] = []): Promise<DreamAnalysis> => {
+  const response = await fetch(`${API_BASE}/analyze`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        dreamText,
+        attachments
+    })
   });
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-exp',
-    contents: { parts },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          summary: { type: Type.STRING },
-          interpretation: { type: Type.STRING },
-          symbolism: { 
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          },
-          visualPrompt: { type: Type.STRING, description: "A detailed visual description for video generation software." }
-        },
-        required: ["title", "summary", "interpretation", "symbolism", "visualPrompt"]
-      }
-    }
-  });
+  if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Analysis failed: ${response.statusText}`);
+  }
 
-  const text = response.text;
-  if (!text) throw new Error("No analysis generated");
-  
-  return JSON.parse(text) as DreamAnalysis;
+  return await response.json();
 };
 
 /**
  * Generates a high-quality still image using Gemini 3 Pro Image Preview.
+ * @deprecated - backend migration pending
  */
 export const generateDreamImage = async (visualPrompt: string): Promise<string> => {
-  const ai = getClient();
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-exp',
-    contents: {
-      parts: [{ text: visualPrompt }]
-    },
-    config: {
-      imageConfig: {
-        aspectRatio: "16:9",
-        imageSize: "2K"
-      }
-    }
-  });
-
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
-  }
-
-  throw new Error("No image generated");
+  throw new Error("Feature temporarily unavailable during backend migration.");
 };
 
 /**
  * Generates a video using Veo (veo-3.1-fast-generate-preview).
+ * @deprecated - backend migration pending
  */
 export const generateDreamVideo = async (visualPrompt: string): Promise<string> => {
-  const ai = getClient();
-
-  // 1. Start the operation
-  let operation = await ai.models.generateVideos({
-    model: 'veo-3.1-fast-generate-preview',
-    prompt: visualPrompt,
-    config: {
-      numberOfVideos: 1,
-      resolution: '720p',
-      aspectRatio: '16:9'
-    }
-  });
-
-  // 2. Poll until done
-  while (!operation.done) {
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    operation = await ai.operations.getVideosOperation({ operation: operation });
-  }
-
-  // 3. Extract URI
-  const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
-  
-  if (!videoUri) {
-    throw new Error("Video generation completed but no URI returned.");
-  }
-
-  // 4. Fetch the actual video bytes
-  const fetchUrl = `${videoUri}&key=${process.env.API_KEY}`;
-  
-  const videoResponse = await fetch(fetchUrl);
-  if (!videoResponse.ok) {
-     throw new Error("Failed to download generated video.");
-  }
-  
-  const blob = await videoResponse.blob();
-  return URL.createObjectURL(blob);
+  throw new Error("Feature temporarily unavailable during backend migration.");
 };

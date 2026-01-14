@@ -1,19 +1,31 @@
 import { DreamAnalysis, DreamAttachment } from "../types";
 
-// Use local proxy path
-const OLLAMA_HOST = '/api/ollama';
-
 /**
  * Checks if Ollama is reachable and the model is loaded.
  */
-export const checkOllamaConnection = async (): Promise<boolean> => {
+export const checkOllamaConnection = async (host: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${OLLAMA_HOST}/tags`);
+    const response = await fetch(`${host}/api/tags`);
     return response.ok;
   } catch (error) {
-    console.warn("Ollama connection check failed:", error);
+    // Fail silently to avoid noise in the console, as this is just a capability check
+    // console.warn("Ollama connection check failed:", error); 
     return false;
   }
+};
+
+/**
+ * Fetches the Ollama version.
+ */
+export const getOllamaVersion = async (host: string): Promise<string | null> => {
+    try {
+        const response = await fetch(`${host}/api/version`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.version;
+    } catch (e) {
+        return null; // Fallback
+    }
 };
 
 /**
@@ -33,7 +45,7 @@ const generateFallbackAnalysis = (text: string): DreamAnalysis => {
   };
 };
 
-export const analyzeDreamTextOllama = async (dreamText: string, attachments: DreamAttachment[] = []): Promise<DreamAnalysis> => {
+export const analyzeDreamTextOllama = async (dreamText: string, attachments: DreamAttachment[] = [], host: string): Promise<DreamAnalysis> => {
   // Determine if this is a vision task or pure text task
   const hasImages = attachments.length > 0;
 
@@ -68,7 +80,7 @@ export const analyzeDreamTextOllama = async (dreamText: string, attachments: Dre
   const images = attachments.map(att => att.base64);
 
   try {
-    const response = await fetch(`${OLLAMA_HOST}/generate`, {
+    const response = await fetch(`${host}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -100,9 +112,7 @@ export const analyzeDreamTextOllama = async (dreamText: string, attachments: Dre
 
   } catch (error: any) {
     console.error("Ollama Analysis Failed:", error);
-    console.warn("Switching to Fallback Analysis Mode");
-
-    // If the error is network related or model crash, use fallback
-    return generateFallbackAnalysis(dreamText);
+    // Rethrow to allow UI to show the error state instead of failing silently with a mock
+    throw error;
   }
 };

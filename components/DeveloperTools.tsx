@@ -22,20 +22,16 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'controls' | 'logs'>('controls');
 
-    if (!isOpen) return (
-        <button
-            onClick={onToggle}
-            className="fixed bottom-4 right-4 z-50 p-3 bg-slate-900 border border-slate-700 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg group"
-        >
-            <Wrench className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-        </button>
-    );
+    if (!isOpen) return null;
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 w-96 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[600px] animate-in slide-in-from-bottom-5 fade-in duration-300">
+        <div className="absolute top-full right-0 mt-4 z-50 w-96 bg-[#0F0F11] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[600px] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+            {/* Notch */}
+            <div className="absolute -top-2 right-3 w-4 h-4 bg-[#0F0F11] border-l border-t border-white/10 transform rotate-45"></div>
+
             {/* Header */}
-            <div className="flex items-center justify-between p-3 border-b border-slate-800 bg-black/40">
-                <div className="flex items-center gap-2 font-mono text-sm font-bold text-slate-200">
+            <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/20 relative z-10">
+                <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-400 uppercase tracking-widest">
                     <Wrench className="w-4 h-4 text-cyan-500" />
                     DEV_TOOLS
                 </div>

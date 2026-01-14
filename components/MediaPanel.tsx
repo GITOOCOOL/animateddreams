@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image as ImageIcon, Video, Loader2, Play, AlertCircle, Cpu } from 'lucide-react';
+import { Image as ImageIcon, Video, Loader2, Play, AlertCircle, Cpu, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressBar from './ProgressBar';
 
@@ -14,9 +14,21 @@ interface MediaPanelProps {
   videoEnabled: boolean;
   onSelectKey: () => void;
   progress?: number;
-  showSettingsPrompt?: boolean;
   onOpenSettings?: () => void;
-  onDismissSettingsPrompt?: () => void;
+  isModelSelected: boolean;
+  settingsContent?: React.ReactNode;
+  
+  // New props for integrated selector
+  onShowWorkflow?: () => void;
+  availableModels: string[];
+  currentModel: string;
+  onModelSelect: (model: string) => void;
+  isComfyConnected: boolean;
+  videoSettingsContent?: React.ReactNode;
+  
+  // Visualization
+  visualizationContent?: React.ReactNode;
+  isVisualizing?: boolean;
 }
 
 const MediaPanel: React.FC<MediaPanelProps> = ({
@@ -30,196 +42,259 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
   videoEnabled,
   onSelectKey,
   progress = 0,
-  showSettingsPrompt,
   onOpenSettings,
-  onDismissSettingsPrompt
+  isModelSelected,
+  settingsContent,
+  onShowWorkflow,
+  availableModels,
+  currentModel,
+  onModelSelect,
+  isComfyConnected,
+  videoSettingsContent,
+  visualizationContent,
+  isVisualizing = false
 }) => {
+  const [activeView, setActiveView] = React.useState<'image' | 'video'>('image');
+  const [isVideoSettingsOpen, setIsVideoSettingsOpen] = React.useState(false);
+
+  // Auto-switch to video view if video starts generating
+  React.useEffect(() => {
+    if (isGeneratingVideo) setActiveView('video');
+  }, [isGeneratingVideo]);
+  
+  // Auto-switch to image view if image starts generating
+  React.useEffect(() => {
+    if (isGeneratingImage) setActiveView('image');
+  }, [isGeneratingImage]);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-        <h3 className="text-xl font-bold uppercase text-white flex items-center gap-2">
-          <Cpu className="w-5 h-5 text-neon-blue" />
-          Visual_Output_Modules
-        </h3>
-        {!videoEnabled && (
-          <button
-            onClick={onSelectKey}
-            className="text-xs font-mono text-amber-400 hover:text-amber-300 border border-amber-500/30 px-2 py-1 rounded bg-amber-900/10 uppercase tracking-tight"
-          >
-            [ Unlock Veo Access ]
-          </button>
-        )}
-      </div>
-
-      {/* Settings Prompt Banner */}
-      <AnimatePresence>
-        {showSettingsPrompt && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: -10, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-purple-900/20 border-l-4 border-purple-500 p-4 rounded-r flex flex-col items-center justify-center gap-4 text-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="bg-purple-500/20 p-2 rounded-full h-8 w-8 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4 h-4 text-purple-400" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-purple-200 uppercase tracking-wide">Optimization Suggestion</h4>
-                  <p className="text-xs text-purple-300/80 mt-1 max-w-sm">
-                    Analysis complete. We recommend reviewing your render settings (Steps, CFG, Model) before synthesis to match the complexity of this dream.
-                  </p>
-                  {onOpenSettings && (
-                    <button
-                      onClick={onOpenSettings}
-                      className="mt-3 text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded transition-colors uppercase tracking-wider shadow-lg shadow-purple-900/50"
-                    >
-                      Open Settings Panel
-                    </button>
-                  )}
-                </div>
-              </div>
-              {onDismissSettingsPrompt && (
-                <button onClick={onDismissSettingsPrompt} className="text-slate-500 hover:text-white transition-colors absolute top-2 right-2">
-                  <span className="sr-only">Dismiss</span>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Controls */}
-      <div className="flex gap-4">
-        <button
-          onClick={onGenerateImage}
-          disabled={!hasAnalysis || isGeneratingImage}
-          className={`
-            flex-1 relative overflow-hidden group px-4 py-4 rounded-sm font-bold uppercase tracking-wider transition-all border
-            ${!hasAnalysis
-              ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
-              : isGeneratingImage
-                ? 'bg-slate-800 border-cyan-900 text-cyan-500 cursor-wait'
-                : 'bg-slate-900 border-cyan-500 text-cyan-400 hover:bg-cyan-900/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)]'
-            }
-          `}
-        >
-          <div className="flex items-center justify-center gap-2 relative z-10">
-            {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-            <span>{isGeneratingImage ? 'Rendering...' : 'Render_Still'}</span>
-          </div>
-          {/* Button Tech Deco */}
-          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-current opacity-50"></div>
-          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-current opacity-50"></div>
-        </button>
-
-        <button
-          onClick={videoEnabled ? onGenerateVideo : onSelectKey}
-          disabled={(!videoEnabled && false) || !hasAnalysis || isGeneratingVideo}
-          className={`
-            flex-1 relative overflow-hidden group px-4 py-4 rounded-sm font-bold uppercase tracking-wider transition-all border
-            ${!hasAnalysis
-              ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
-              : isGeneratingVideo
-                ? 'bg-slate-800 border-pink-900 text-pink-500 cursor-wait'
-                : 'bg-slate-900 border-pink-500 text-pink-400 hover:bg-pink-900/20 hover:shadow-[0_0_15px_rgba(244,114,182,0.3)]'
-            }
-          `}
-        >
-          <div className="flex items-center justify-center gap-2 relative z-10">
-            {isGeneratingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
-            <span>{isGeneratingVideo ? 'Processing...' : 'Render_Veo_Seq'}</span>
-          </div>
-          {/* Button Tech Deco */}
-          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-current opacity-50"></div>
-          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-current opacity-50"></div>
-        </button>
-      </div>
-
-      {/* Display Area */}
-      <div className="grid grid-cols-1 gap-8">
-
-        {/* Image Card */}
-        <div className="group relative bg-black border border-slate-800 rounded-lg overflow-hidden min-h-[300px] flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {isGeneratingImage ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-20 p-8"
-              >
-                <div className="w-full max-w-xs space-y-4">
-                  <div className="mx-auto w-16 h-16 border-4 border-cyan-900/30 border-t-cyan-400 rounded-full animate-spin"></div>
-                  <p className="text-cyan-400 font-mono text-xs text-center animate-pulse tracking-widest">
-                    LATENT_DIFFUSION_IN_PROGRESS...
-                  </p>
-                  <ProgressBar progress={progress} label="SAMPLING" statusText="Denoising latents..." color="cyan" />
-                </div>
-              </motion.div>
-            ) : imageUrl ? (
-              <motion.div key="image" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full">
-                <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 border-2 border-cyan-500/0 group-hover:border-cyan-500/50 transition-all pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <p className="text-cyan-400 text-xs font-mono">SOURCE: GENERATED_VISUAL</p>
-                </div>
-              </motion.div>
+      
+      {/* Unified Display Area */}
+      <div className="group relative bg-black border border-slate-800 rounded-lg overflow-hidden min-h-[500px] flex items-center justify-center transition-all bg-[url('/grid-pattern.png')]">
+        
+        <AnimatePresence mode="wait">
+            {activeView === 'image' ? (
+                /* IMAGE VIEW */
+                <motion.div key="image-view" className="w-full h-full absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    {isVisualizing && visualizationContent ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-black/95 z-20 p-6 animate-in fade-in duration-300">
+                             {visualizationContent}
+                        </div>
+                    ) : imageUrl ? (
+                        <div className="w-full h-full relative">
+                            <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 border-2 border-cyan-500/0 group-hover:border-cyan-500/50 transition-all pointer-events-none"></div>
+                            <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
+                                <p className="text-cyan-400 text-xs font-mono">SOURCE: GENERATED_VISUAL</p>
+                            </div>
+                            {/* Workflow View Button */}
+                            {onShowWorkflow && (
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onShowWorkflow();
+                                    }}
+                                    className="absolute top-4 left-4 bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/10 p-2 rounded-lg text-white/70 hover:text-cyan-400 transition-all opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0"
+                                    title="View Workflow"
+                                >
+                                    <Activity className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 opacity-40">
+                            <ImageIcon className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+                            <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mb-4">
+                                {hasAnalysis ? "[ Ready to Render ]" : "[ Awaiting Analysis ]"}
+                            </p>
+                        </div>
+                    )}
+                </motion.div>
             ) : (
-              <div key="empty" className="text-center p-6 opacity-40">
-                <ImageIcon className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-                <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">[ No Signal ]</p>
-              </div>
+                /* VIDEO VIEW */
+                <motion.div key="video-view" className="w-full h-full absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    {videoUrl ? (
+                        <div className="w-full h-full relative">
+                            <video
+                                src={videoUrl}
+                                controls
+                                autoPlay
+                                loop
+                                className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-4 right-4 bg-black/80 border border-pink-500/50 px-2 py-1 rounded text-[10px] text-pink-400 font-mono animate-pulse">
+                                ● LIVE_FEED: VEO-3.1
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 opacity-40">
+                            <div className="w-16 h-16 bg-slate-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-800">
+                                <Play className="w-6 h-6 text-slate-700 ml-1" />
+                            </div>
+                            <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">
+                                {videoEnabled ? "[ Awaiting Sequence ]" : "[ Authentication Required ]"}
+                            </p>
+                            {!videoEnabled && (
+                                <button onClick={onSelectKey} className="mt-4 text-xs font-bold text-amber-500 border border-amber-500/30 bg-amber-900/10 px-4 py-2 rounded uppercase hover:bg-amber-900/20 transition-colors">
+                                    Initiate Auth Protocol
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </motion.div>
             )}
-          </AnimatePresence>
-        </div>
-
-        {/* Video Card */}
-        <div className="group relative bg-black border border-slate-800 rounded-lg overflow-hidden min-h-[300px] flex items-center justify-center">
-          {videoUrl ? (
-            <div className="w-full h-full relative">
-              <video
-                src={videoUrl}
-                controls
-                autoPlay
-                loop
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-4 right-4 bg-black/80 border border-pink-500/50 px-2 py-1 rounded text-[10px] text-pink-400 font-mono animate-pulse">
-                ● LIVE_FEED: VEO-3.1
-              </div>
-            </div>
-          ) : (
-            <div className="text-center p-6 opacity-40">
-              <div className="w-16 h-16 bg-slate-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-800">
-                <Play className="w-6 h-6 text-slate-700 ml-1" />
-              </div>
-              <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">
-                {videoEnabled ? "[ Awaiting Sequence ]" : "[ Authentication Required ]"}
-              </p>
-            </div>
-          )}
-        </div>
-
+        </AnimatePresence>
       </div>
 
-      {!videoEnabled && (
-        <div className="flex items-start gap-3 bg-amber-900/10 text-amber-500 p-4 rounded border border-amber-500/20 font-mono text-xs">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <p>
-            WARNING: Premium endpoint (Veo) requires billing authorization.
-            <button onClick={onSelectKey} className="underline ml-2 font-bold hover:text-amber-400">
-              [ INITIATE AUTH PROTOCOL ]
-            </button>
-          </p>
-        </div>
-      )}
+       {/* Bottom Controls */}
+       <div className="flex items-end justify-between gap-4">
+           
+           {/* Image Module Control */}
+           <div className={`
+                flex-1 flex flex-col gap-1 p-3 rounded-lg border transition-colors cursor-pointer relative
+                ${activeView === 'image' ? 'border-cyan-900/50 bg-cyan-900/5' : 'border-transparent hover:bg-white/5'}
+           `}
+                onClick={() => setActiveView('image')}
+           >
+                {/* Popover Settings Panel */}
+                {settingsContent && (
+                    <div className="absolute bottom-full left-0 mb-4 w-[400px] z-50 origin-bottom-left">
+                        {settingsContent}
+                    </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Image Module</span>
+                    {activeView === 'image' && isGeneratingImage && <Loader2 className="w-3 h-3 text-cyan-400 animate-spin" />}
+                </div>
+                
+                <div className="flex items-center gap-3 mt-1">
+                    <div className={`w-2 h-2 rounded-full ${isComfyConnected ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`}></div>
+                    
+                    <div className="flex flex-col flex-1">
+                        <div className="flex items-center justify-between">
+                             <span className={`text-xs font-mono font-bold ${isComfyConnected ? 'text-green-400' : 'text-red-400'}`}>
+                                {isComfyConnected ? 'COMFY_NODE READY' : 'OFFLINE'}
+                             </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-1">
+                            <span className="text-[10px] text-slate-400 font-mono truncate max-w-[150px]">
+                                {currentModel ? currentModel.replace('.safetensors', '') : 'No Model Selected'}
+                            </span>
+                            {isModelSelected ? (
+                                <div className="flex items-center gap-1">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onOpenSettings && onOpenSettings();
+                                        }}
+                                        className="text-[9px] uppercase font-bold text-slate-500 hover:text-white bg-slate-800/50 hover:bg-slate-700 px-2 py-0.5 rounded transition-all"
+                                    >
+                                        Config
+                                    </button>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (hasAnalysis && !isVisualizing && !isGeneratingImage) onGenerateImage();
+                                        }}
+                                        disabled={!hasAnalysis || isVisualizing || isGeneratingImage}
+                                        className={`
+                                            text-[9px] uppercase font-bold px-2 py-0.5 rounded transition-all
+                                            ${hasAnalysis && !isVisualizing && !isGeneratingImage
+                                                ? 'text-black bg-cyan-400 hover:bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse cursor-pointer' 
+                                                : 'text-slate-500 bg-slate-800 cursor-not-allowed opacity-50'}
+                                        `}
+                                    >
+                                        {hasAnalysis ? (isVisualizing || isGeneratingImage ? 'BUSY' : 'RENDER') : 'WAITING'}
+                                    </button>
+                                </div>
+                            ) : (
+                                onOpenSettings && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onOpenSettings();
+                                        }}
+                                        className="text-[9px] uppercase font-bold text-cyan-500 hover:text-cyan-400 bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-900/50 hover:border-cyan-500/50 transition-all"
+                                    >
+                                        Configure
+                                    </button>
+                                )
+                            )}
+                        </div>
+                    </div>
+                </div>
+           </div>
+
+
+           {/* Video Module Control */}
+           <div
+             onClick={() => {
+                 setActiveView('video');
+                 if (videoEnabled && !isGeneratingVideo && hasAnalysis) {
+                     onGenerateVideo();
+                 } else if (!videoEnabled) {
+                     onSelectKey();
+                 }
+             }}
+             className={`
+                flex-1 flex flex-col gap-1 p-3 rounded-lg border transition-colors cursor-pointer relative
+                ${activeView === 'video' ? 'border-pink-900/50 bg-pink-900/5' : 'border-transparent hover:bg-white/5'}
+             `}
+           >
+                {/* Popover Video Settings Panel */}
+                {videoSettingsContent && isVideoSettingsOpen && (
+                    <div className="absolute bottom-full right-0 mb-4 w-[400px] z-50 origin-bottom-right">
+                        {React.isValidElement(videoSettingsContent) 
+                            ? React.cloneElement(videoSettingsContent as React.ReactElement<any>, { 
+                                onDone: () => setIsVideoSettingsOpen(false) 
+                              })
+                            : videoSettingsContent
+                        }
+                    </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Video Module</span>
+                    {activeView === 'video' && isGeneratingVideo && <Loader2 className="w-3 h-3 text-pink-400 animate-spin" />}
+                </div>
+                
+                <div className="flex items-center gap-3 mt-1">
+                     <div className={`flex items-center justify-center w-5 h-5 rounded-full bg-slate-800 ${activeView === 'video' ? 'text-pink-400' : 'text-slate-600'}`}>
+                        {activeView === 'video' ? <Video className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                     </div>
+
+                     <div className="flex flex-col flex-1">
+                         <div className="flex items-center justify-between">
+                            <span className={`text-xs font-mono font-bold leading-none ${activeView === 'video' ? 'text-pink-400' : 'text-slate-500'}`}>
+                                {videoEnabled ? 'ACTIVE: GOOGLE VEO' : 'LOCKED'}
+                            </span>
+                         </div>
+                         
+                         <div className="flex items-center justify-between mt-1">
+                            <span className="text-[9px] text-slate-600 font-mono truncate leading-tight">
+                                High Fidelity Generation
+                            </span>
+                            {videoEnabled && (
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsVideoSettingsOpen(!isVideoSettingsOpen);
+                                    }}
+                                    className="text-[9px] uppercase font-bold text-pink-500 hover:text-pink-400 bg-pink-950/30 px-2 py-0.5 rounded border border-pink-900/50 hover:border-pink-500/50 transition-all"
+                                >
+                                    Configure
+                                </button>
+                            )}
+                         </div>
+                     </div>
+                </div>
+           </div>
+
+       </div>
     </div>
   );
 };
-
 export default MediaPanel;

@@ -39,13 +39,28 @@ export const saveDreamToDatabase = async (
             payload.media = { url: dream.generatedVideoUrl, type: 'video' };
         }
 
+        const token = localStorage.getItem('authToken');
+        if (!token) throw new Error("No auth token found");
+
         const response = await fetch(`${DB_API}/dreams`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error('Failed to save to DB');
+        if (!response.ok) {
+            if (response.status === 403 || response.status === 401) {
+                console.warn("Authentication invalid. clearing session.");
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('authUser');
+                window.location.reload();
+                throw new Error("Session expired. Please login again.");
+            }
+            throw new Error('Failed to save to DB');
+        }
         console.log("Dream Saved Successfully");
         return await response.json();
 
@@ -60,7 +75,14 @@ export const saveDreamToDatabase = async (
  */
 export const getSavedDreams = async (): Promise<SavedDream[]> => {
     try {
-        const response = await fetch(`${DB_API}/dreams`);
+        const token = localStorage.getItem('authToken');
+        if (!token) throw new Error("No auth token found");
+
+        const response = await fetch(`${DB_API}/dreams`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         if (!response.ok) throw new Error('Failed to fetch history');
         return await response.json();
     } catch (error) {

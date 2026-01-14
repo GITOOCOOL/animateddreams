@@ -1,20 +1,27 @@
-import React from 'react';
-import { Sparkles, Terminal, LogOut, RefreshCw } from 'lucide-react';
+import React from 'react'; 
+import { Sparkles, Terminal, LogOut, RefreshCw, Wrench, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import DeveloperTools from '../DeveloperTools';
 
 interface HeaderProps {
     isComfyConnected: boolean;
     isRemote: boolean;
     onToggleDevTools: () => void;
-    showLogs: boolean;
-    onToggleLogs: () => void;
     onReset: () => void;
     onOpenGallery: () => void;
+    showDevTools: boolean;
+    logs: string[];
+    devSettings: {
+        mockAnalysis: boolean;
+        mockGeneration: boolean;
+    };
+    onUpdateSettings: (settings: any) => void;
+    onOpenSettings?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
     isComfyConnected, isRemote, onToggleDevTools,
-    showLogs, onToggleLogs, onReset, onOpenGallery
+    onReset, onOpenGallery, showDevTools, logs, devSettings, onUpdateSettings, onOpenSettings
 }) => {
     const { user, logout } = useAuth();
 
@@ -28,11 +35,9 @@ const Header: React.FC<HeaderProps> = ({
                     </div>
                 </div>
                 <div>
-                    <h1 className="text-xl font-bold tracking-tight text-white">Animated<span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Dreams</span></h1>
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-500 font-mono">
-                        <div className={`w-1.5 h-1.5 rounded-full ${isComfyConnected ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`}></div>
-                        {isComfyConnected ? 'System Online' : 'System Offline'}
-                        {isRemote && <span className="text-yellow-500 ml-2">REMOTE</span>}
+                    <h1 className="text-xl font-bold tracking-tight text-white mb-1">Animated<span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Dreams</span></h1>
+                    <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest text-slate-500 font-mono">
+                        {isRemote && <span className="text-yellow-500 border border-yellow-500/20 px-1 rounded bg-yellow-500/5">REMOTE</span>}
                     </div>
                 </div>
             </div>
@@ -54,15 +59,35 @@ const Header: React.FC<HeaderProps> = ({
                 >
                     Gallery
                 </button>
-                <button
-                    onClick={onToggleLogs}
-                    className={`p-2 rounded-lg transition-colors border ${showLogs ? 'bg-purple-900/20 text-purple-400 border-purple-500/30' : 'text-slate-500 hover:text-white border-transparent'}`}
-                    title="System Logs"
-                >
-                    <Terminal className="w-4 h-4" />
-                </button>
+                <div className="relative">
+                    <button
+                        onClick={onToggleDevTools}
+                        className={`p-2 transition-colors ${showDevTools ? 'text-cyan-400 bg-cyan-900/20 rounded' : 'text-slate-500 hover:text-cyan-400'}`}
+                        title="Developer Tools"
+                    >
+                        <Wrench className="w-4 h-4" />
+                    </button>
+                    <DeveloperTools 
+                        isOpen={showDevTools} 
+                        onToggle={onToggleDevTools}
+                        logs={logs}
+                        devSettings={devSettings}
+                        onUpdateSettings={onUpdateSettings}
+                    />
+                </div>
                 <button onClick={onReset} className="p-2 text-slate-600 hover:text-red-400 transition-colors" title="Reset Interface">
                     <RefreshCw className="w-4 h-4" />
+                </button>
+                    
+                <div className="h-6 w-px bg-white/10 mx-1"></div>
+
+                <button 
+                    onClick={onOpenSettings}
+                    className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-slate-800 to-slate-900 border border-white/10 rounded-lg hover:border-cyan-500/50 transition-all group shadow-sm hover:shadow-cyan-500/10"
+                    title="System Settings"
+                >
+                    <Settings className="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-white hidden sm:block">Settings</span>
                 </button>
             </div>
         </header>

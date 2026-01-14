@@ -1,22 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { getSavedDreams, SavedDream } from '../services/storageService';
 import { Calendar, AlignLeft, Eye, ImageIcon, X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-const Gallery = () => {
+interface GalleryProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
+
+const Gallery: React.FC<GalleryProps> = ({ isOpen, onClose }) => {
+    const { token } = useAuth();
     const [dreams, setDreams] = useState<SavedDream[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDream, setSelectedDream] = useState<SavedDream | null>(null);
 
     useEffect(() => {
-        loadGallery();
-    }, []);
+        if (isOpen && token) {
+            loadGallery();
+        }
+    }, [isOpen, token]);
 
     const loadGallery = async () => {
         setLoading(true);
-        const data = await getSavedDreams();
-        setDreams(data);
-        setLoading(false);
+        try {
+            const data = await getSavedDreams();
+            setDreams(data);
+        } catch (error) {
+            console.error("Failed to load gallery", error);
+        } finally {
+            setLoading(false);
+        }
     };
+
+    if (!isOpen) return null;
 
     const formatDate = (ts: number) => {
         return new Date(ts).toLocaleDateString(undefined, {
@@ -25,7 +41,15 @@ const Gallery = () => {
     };
 
     return (
-        <div className="w-full">
+        <div className="fixed inset-0 z-40 bg-black/95 backdrop-blur-sm overflow-y-auto p-4 md:p-8 animate-in slide-in-from-bottom-10 fade-in duration-300">
+            <button 
+                onClick={onClose}
+                className="absolute top-4 right-4 z-50 bg-slate-800 hover:bg-slate-700 p-2 rounded-full text-white transition-colors"
+            >
+                <X className="w-6 h-6" />
+            </button>
+            
+            <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-8 flex items-center justify-between">
                 <h2 className="text-2xl font-black uppercase text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">
@@ -168,6 +192,7 @@ const Gallery = () => {
                     </div>
                 </div>
             )}
+        </div>
         </div>
     );
 };
