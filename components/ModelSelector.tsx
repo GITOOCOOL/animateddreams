@@ -9,6 +9,11 @@ interface ModelSelectorProps {
         ollama: boolean;
         raw: boolean;
     };
+    isChecking?: {
+        gemini: boolean;
+        ollama: boolean;
+        raw: boolean;
+    };
     onConfigure?: () => void;
 }
 
@@ -28,7 +33,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSelect, a
     const isAvailable = currentModel ? availability[currentModel] : false;
 
     return (
-        <div className="relative group min-w-[200px]">
+        <div className="relative group w-full min-w-0">
              <div className="flex justify-between items-center mb-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
                     Analysis Engine
@@ -48,7 +53,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSelect, a
                     value={currentModel || ''}
                     onChange={(e) => onSelect(e.target.value as any)}
                     className={`
-                        w-full appearance-none bg-[#1A1A1D] border rounded-xl py-2.5 pl-9 pr-10 text-xs font-bold text-slate-200 outline-none transition-all cursor-pointer
+                        w-full appearance-none bg-[#1A1A1D] border rounded-xl py-2 pl-8 pr-8 text-[11px] lg:text-xs font-bold text-slate-200 outline-none transition-all cursor-pointer
                         ${isLoading 
                             ? 'border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.1)]' 
                             : isAvailable 

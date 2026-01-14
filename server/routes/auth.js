@@ -1,9 +1,10 @@
-const express = require('express');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import db from '../db/database.js';
+import { JWT_SECRET, authenticateToken } from '../middleware/auth.js';
+
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('../db/database.cjs');
-const { JWT_SECRET } = require('../middleware/auth.cjs');
 
 router.post('/register', async (req, res) => {
     const { username, password } = req.body;
@@ -37,9 +38,8 @@ router.post('/login', (req, res) => {
     });
 });
 
-const { authenticateToken } = require('../middleware/auth.cjs');
 router.get('/verify', authenticateToken, (req, res) => {
     res.json({ valid: true, user: req.user });
 });
 
-module.exports = router;
+export default router;

@@ -22,12 +22,19 @@ export function useTranscriber() {
 
     useEffect(() => {
         if (!worker.current) {
-            worker.current = new Worker(new URL('/whisper.worker.js', import.meta.url), {
+            // Point to the source file so Vite bundles it
+            worker.current = new Worker(new URL('../workers/whisper.worker.js', import.meta.url), {
                 type: 'module'
             });
 
+            worker.current.onerror = (err) => {
+                console.error("[useTranscriber] Worker Error:", err);
+                setState(prev => ({ ...prev, isBusy: false, error: "Worker crashed. Check console." }));
+            };
+
             worker.current.addEventListener('message', (event) => {
                 const { status, data } = event.data;
+                console.log(`[useTranscriber] Worker Message: ${status}`, data);
 
                 switch (status) {
                     case 'loading':

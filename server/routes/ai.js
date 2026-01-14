@@ -1,5 +1,12 @@
-const express = require('express');
+import express from 'express';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 const { GoogleGenAI, SchemaType } = require("@google/genai");
+import multer from 'multer';
+
+// Note: fetch and FormData are native in Node 18+ and verified to work
+// No imports needed for them.
+
 const router = express.Router();
 
 const getClient = () => {
@@ -99,10 +106,6 @@ router.post('/analyze', async (req, res) => {
     }
 });
 
-const multer = require('multer');
-const FormData = require('form-data');
-const fetch = require('node-fetch'); // Ensure node-fetch is available, or use native fetch in Node 18+
-
 // Configure Multer for memory storage
 const upload = multer({ 
     storage: multer.memoryStorage(),
@@ -118,23 +121,29 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
         // Determine Target URL and Headers
         const whisperUrl = req.headers['x-whisper-host'] || process.env.VITE_WHISPER_API_URL || 'http://localhost:9000/v1/audio/transcriptions';
-        const apiKey = req.headers['x-api-key'];
+        // PRIORITY: Server Environment > Client Header
+        // This fixes issues where client sends malformed/cached keys
+        const apiKey = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY || req.headers['x-api-key'];
         const model = req.headers['x-whisper-model'] || 'whisper-1';
         
         console.log(`[Whisper] Transcribing via ${whisperUrl}...`);
-
-        // Create FormData for the external API
+        if (apiKey) console.log(`[Whisper] API Key received: ${apiKey.substring(0, 8)}...`);
+        else console.log(`[Whisper] NO API Key header received!`);
+        
+        // Use Native FormData and Blob (Node 18+)
+        // Note: No imports needed for Blob/FormData in Node > 18
         const formData = new FormData();
-        formData.append('file', req.file.buffer, {
-            filename: 'audio.webm',
-            contentType: req.file.mimetype,
-        });
-        formData.append('model', model); 
+        
+        // Convert Multer Buffer to Blob
+        const fileBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
+        formData.append('file', fileBlob, 'audio.webm');
+        formData.append('model', model);
 
         const headers = {};
         if (apiKey) {
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
+        // Note: Native fetch automatically sets Content-Type with boundary for FormData
 
         const response = await fetch(whisperUrl, {
             method: 'POST',
@@ -144,7 +153,8 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(`Whisper API Error (${response.status}): ${errText}`);
+            console.error(`[Whisper] Upstream Error (${response.status}):`, errText);
+            throw new Error(`Upstream Error (${response.status}): ${errText}`);
         }
 
         const data = await response.json();
@@ -152,14 +162,11 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     } catch (error) {
         console.error("Transcription Failed:", error);
-        // Fallback for demo purposes if no server is running? 
-        // No, better to error out so user knows to run the server.
         res.status(502).json({ 
             error: "Transcription Service Unavailable", 
-            details: error.message,
-            hint: "Ensure a Whisper-compatible server is running at VITE_WHISPER_API_URL"
+            details: error.message
         });
     }
 });
 
-module.exports = router;
+export default router;

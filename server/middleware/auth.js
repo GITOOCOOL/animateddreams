@@ -1,8 +1,8 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = 'your-secret-key-change-this-in-prod'; // Should come from process.env
+export const JWT_SECRET = 'your-secret-key-change-this-in-prod'; // Should come from process.env
 
-const authenticateToken = (req, res, next) => {
+export const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -14,5 +14,3 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
-
-module.exports = { authenticateToken, JWT_SECRET };

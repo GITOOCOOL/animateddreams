@@ -1,12 +1,20 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+import authRoutes from './routes/auth.js';
+import dreamRoutes from './routes/dreams.js';
+import aiRoutes from './routes/ai.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load env vars
 const envPath = path.resolve(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
-    // Basic dotenv parser since we can't depend on 'dotenv' package being installed yet
+    // Basic dotenv parser
     const envConfig = fs.readFileSync(envPath, 'utf-8');
     envConfig.split('\n').forEach(line => {
         const [key, ...val] = line.split('=');
@@ -16,10 +24,6 @@ if (fs.existsSync(envPath)) {
     });
 }
 
-const authRoutes = require('./routes/auth.cjs');
-const dreamRoutes = require('./routes/dreams.cjs');
-const aiRoutes = require('./routes/ai.cjs');
-
 const app = express();
 const PORT = 3001;
 
@@ -27,7 +31,7 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit for image attachments
 
-// Storage Static Serve (Matches what's in routes/dreams.js)
+// Storage Static Serve
 const STORAGE_DIR = path.join(__dirname, '..', 'saved_dreams');
 app.use('/storage', express.static(STORAGE_DIR));
 

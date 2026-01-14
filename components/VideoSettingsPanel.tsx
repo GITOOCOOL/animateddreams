@@ -23,11 +23,7 @@ const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({ settings, onSet
   };
 
   return (
-    <div className="w-full bg-[#0F0F11] border border-white/10 rounded-2xl p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
-            <Settings className="w-4 h-4 text-pink-500" />
-            Video Configuration
-        </h3>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col pr-2">
 
         <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2">
              {/* Model Selection */}
@@ -99,20 +95,7 @@ const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({ settings, onSet
 
         
         {/* Done Button */}
-        <div className="pt-4 mt-auto">
-            <button
-                onClick={onDone}
-                disabled={!settings.model}
-                className={`
-                    w-full py-2 rounded-lg font-bold uppercase text-[10px] tracking-widest transition-all
-                    ${settings.model 
-                        ? 'bg-pink-900/50 text-pink-400 border border-pink-500/50 hover:bg-pink-500 hover:text-black shadow-[0_0_15px_rgba(236,72,153,0.2)]' 
-                        : 'bg-white/5 text-slate-600 cursor-not-allowed border border-white/5'}
-                `}
-            >
-                {settings.model ? 'Confirm Video Settings' : 'Select Model to Proceed'}
-            </button>
-        </div>
+
     </div>
   );
 };

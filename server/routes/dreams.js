@@ -1,13 +1,15 @@
-const express = require('express');
-const router = express.Router();
-const path = require('path');
-const fs = require('fs');
-const db = require('../db/database.cjs');
-const { authenticateToken } = require('../middleware/auth.cjs');
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import db from '../db/database.js';
+import { authenticateToken } from '../middleware/auth.js';
 
-// Storage Directory (Needs to be reachable here too or passed in)
-// For simplicity, defining it here again or export from index (cyclic dep risk).
-// Best to keep common constants in config/ but here is fine.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const router = express.Router();
+
+// Storage Directory
 const STORAGE_DIR = path.join(__dirname, '..', '..', 'saved_dreams');
 if (!fs.existsSync(STORAGE_DIR)) {
     fs.mkdirSync(STORAGE_DIR, { recursive: true });
@@ -119,4 +121,4 @@ router.post('/', authenticateToken, async (req, res) => {
     stmt.finalize();
 });
 
-module.exports = router;
+export default router;

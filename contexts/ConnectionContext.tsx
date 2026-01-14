@@ -23,8 +23,8 @@ const DEFAULT_SETTINGS: ConnectionSettings = {
     comfyHost: import.meta.env.VITE_COMFY_API_HOST || 'http://127.0.0.1:8188',
     // In dev, usually localhost:3001, but we can allow override
     backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
-    transcriptionProvider: 'local',
-    transcriptionKey: '',
+    transcriptionProvider: import.meta.env.VITE_GROQ_API_KEY ? 'groq' : 'local',
+    transcriptionKey: import.meta.env.VITE_GROQ_API_KEY || '',
     transcriptionUrl: 'https://api.openai.com/v1/audio/transcriptions',
     transcriptionModel: 'whisper-1' 
 };
@@ -38,6 +38,14 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (stored) {
             try {
                 const parsed = JSON.parse(stored);
+                // Smart Hydration: If Environment has a key but Storage is empty/missing, use Environment
+                if (import.meta.env.VITE_GROQ_API_KEY && !parsed.transcriptionKey) {
+                     parsed.transcriptionKey = import.meta.env.VITE_GROQ_API_KEY;
+                     // Also force provider if we found a key
+                     if (parsed.transcriptionProvider === 'local') {
+                         parsed.transcriptionProvider = 'groq'; 
+                     }
+                }
                 setConnections(prev => ({ ...prev, ...parsed }));
             } catch (e) {
                 console.error("Failed to parse stored connections", e);

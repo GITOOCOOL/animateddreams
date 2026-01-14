@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sparkles, Terminal, Activity, X, Image as ImageIcon, Play, Pause, RotateCcw, Mic, Square, Loader2, CheckCircle, Settings, ChevronDown } from 'lucide-react';
 import { useDreamEngine } from './hooks/useDreamEngine';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { useTranscriber } from './hooks/useTranscriber';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ConnectionProvider, useConnections } from './contexts/ConnectionContext';
+
 import Header from './components/layout/Header';
 import AnalysisCard from './components/AnalysisCard';
 import MediaPanel from './components/MediaPanel';
@@ -19,9 +20,16 @@ import SettingsDialog from './components/SettingsDialog';
 import SystemSettingsPanel from './components/SystemSettingsPanel';
 import AnalysisSettingsPanel, { AnalysisSettings } from './components/AnalysisSettingsPanel';
 import ModelSelector from './components/ModelSelector';
+
+
 import ProgressBar from './components/ProgressBar';
 import LoginDialog from './components/LoginDialog';
 import { analyzeDreamGemini } from './services/geminiService';
+import { DictationControl } from './components/DictationControl';
+import DictationSettingsPanel from './components/DictationSettingsPanel';
+import { FallbackDialog } from './components/FallbackDialog';
+import { ResultView } from './components/ResultView';
+
 
 function AppContent() {
   const { user } = useAuth();
@@ -35,6 +43,8 @@ function AppContent() {
   const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
   const [isAnalysisSettingsOpen, setIsAnalysisSettingsOpen] = useState(false);
   const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
+  const [isVideoSettingsOpen, setIsVideoSettingsOpen] = useState(false);
+  const [isDictationSettingsOpen, setIsDictationSettingsOpen] = useState(false);
   
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [showDevTools, setShowDevTools] = useState(false);
@@ -49,6 +59,8 @@ function AppContent() {
   const [iterativeMode, setIterativeMode] = useState(false);
   const [feedbackPrompt, setFeedbackPrompt] = useState("");
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+
 
   // Dev Settings
   const [devSettings, setDevSettings] = useState({
@@ -72,6 +84,24 @@ function AppContent() {
   // Hook Access
   const engine = useDreamEngine(addLog, devSettings);
   const { dreamState, setDreamState, generateImage, availableModels, availableLoras } = engine;
+
+  // Workflow Auto-Scroll Refs
+  const analysisRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to Analysis when ready
+  useEffect(() => {
+    if (dreamState.analysis && analysisRef.current) {
+        analysisRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [dreamState.analysis]);
+
+  // Auto-scroll to Media when generating or finished
+  useEffect(() => {
+    if ((dreamState.isGeneratingImage || dreamState.generatedImageUrl) && mediaRef.current) {
+        mediaRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [dreamState.isGeneratingImage, dreamState.generatedImageUrl]);
   
   // Audio Recorder
   const { startRecording, stopRecording, isRecording, audioBlob, resetAudio } = useAudioRecorder();
@@ -100,6 +130,8 @@ function AppContent() {
                           headers['x-whisper-model'] = 'distil-whisper-large-v3-en'; // Groq specific
                       } else if (connections.transcriptionProvider === 'openai') {
                          headers['x-whisper-host'] = 'https://api.openai.com/v1/audio/transcriptions';
+                      } else if (connections.transcriptionProvider === 'custom') {
+                          headers['x-whisper-host'] = connections.transcriptionUrl;
                       }
                       
                       if (connections.transcriptionKey) {
@@ -201,29 +233,27 @@ function AppContent() {
 
     // Update Analysis with new Feedback
     addLog("[Iterative] Refining prompt based on feedback...");
-    setDreamState(prev => ({
-      ...prev,
+    dispatch({ type: 'SET_STATE', payload: {
       isLoading: true,
       progressStatus: 'Refining Vision...'
-    }));
+    }});
 
     try {
       // Send (Original + Visual + Feedback) to Gemini to get NEW Visual Prompt
       const combinedPrompt = `Original: ${dreamInput}. Previous Visual: ${dreamState.analysis?.visualPrompt}. User Feedback: ${feedbackPrompt}. IMPROVE the visual prompt.`;
       const newAnalysis = await analyzeDreamGemini(combinedPrompt);
 
-      setDreamState(prev => ({
-        ...prev,
+      dispatch({ type: 'SET_STATE', payload: {
         analysis: newAnalysis,
         isLoading: false
-      }));
+      }});
 
       // Auto-trigger generation again
       handleGenerate();
 
     } catch (e) {
       addLog(`[Error] Refinement Failed: ${e}`);
-      setDreamState(prev => ({ ...prev, isLoading: false }));
+      dispatch({ type: 'SET_STATE', payload: { isLoading: false }});
     }
   };
 
@@ -256,8 +286,8 @@ function AppContent() {
           <SystemSettingsPanel />
       </SettingsDialog>
 
-      {/* 2. Analysis Settings (LLM) */}
-       <SettingsDialog 
+       {/* 2. Analysis Settings (LLM) */}
+      <SettingsDialog 
         isOpen={isAnalysisSettingsOpen} 
         onClose={() => setIsAnalysisSettingsOpen(false)}
         title="Analysis Configuration"
@@ -265,11 +295,20 @@ function AppContent() {
           <AnalysisSettingsPanel settings={analysisSettings} onSettingsChange={setAnalysisSettings} />
       </SettingsDialog>
 
-      {/* 3. Generation Settings (ComfyUI) */}
+      {/* 3. Dictation Settings */}
+      <SettingsDialog 
+        isOpen={isDictationSettingsOpen} 
+        onClose={() => setIsDictationSettingsOpen(false)}
+        title="Dictation Configuration"
+      >
+          <DictationSettingsPanel />
+      </SettingsDialog>
+
+      {/* 4. Image Generation Settings (ComfyUI) */}
        <SettingsDialog 
         isOpen={isGenerationSettingsOpen} 
         onClose={() => setIsGenerationSettingsOpen(false)}
-        title="Neural Generation Parameters"
+        title="Image Generation Configuration"
       >
           <SettingsPanel
             settings={engine.comfySettings}
@@ -277,6 +316,18 @@ function AppContent() {
             availableModels={availableModels}
             availableLoras={availableLoras}
             onDone={() => setIsGenerationSettingsOpen(false)}
+          />
+      </SettingsDialog>
+
+      {/* 5. Video Settings (Google Veo) */}
+       <SettingsDialog 
+        isOpen={isVideoSettingsOpen} 
+        onClose={() => setIsVideoSettingsOpen(false)}
+        title="Video Generation Configuration"
+      >
+          <VideoSettingsPanel
+            settings={engine.videoSettings}
+            onSettingsChange={engine.setVideoSettings}
           />
       </SettingsDialog>
 
@@ -293,108 +344,36 @@ function AppContent() {
         onOpenSettings={() => setIsSystemSettingsOpen(true)} 
       />
 
-      <main className="container mx-auto p-4 lg:p-6 max-w-[1600px]">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-140px)]">
-
-          {/* Left Column */}
-          <div className="flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-cyan-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-6 sm:p-8">
+      <main className="container mx-auto max-w-[1800px] px-4 py-6 flex-1 flex flex-col gap-6">
+          
+          {/* Input Section */}
+          <div className="flex flex-col gap-4 relative">
+              <div className="relative group flex flex-col">
+                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col">
                   
-                  {/* Loop Mode Toggle (Absolute Top Right) */}
-                  <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-                    <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded bg-black/50 border ${iterativeMode ? 'border-purple-500/50 text-purple-400' : 'border-slate-800 text-slate-600'}`}>
-                      {iterativeMode ? 'Loop Mode' : 'Single Shot'}
-                    </span>
-                    <button
-                      onClick={() => setIterativeMode(!iterativeMode)}
-                      className={`w-8 h-4 rounded-full transition-colors ${iterativeMode ? 'bg-purple-600' : 'bg-slate-700'}`}
-                    >
-                      <div className={`w-3 h-3 bg-white rounded-full transform transition-transform ${iterativeMode ? 'translate-x-4' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
+
 
                   {/* Input Area */}
-                  <div className="mb-4 relative">
-                    <div className="flex justify-between items-center mb-2">
-                        <label htmlFor="dream-input" className="block text-xs font-bold uppercase tracking-widest text-slate-500">
-                           Dream Mnemonic / Prompt
-                        </label>
+                  <div className="mb-4 relative flex-1 flex flex-col min-h-[350px]">
 
-                    </div>
                     <textarea
                       id="dream-input"
                       value={dreamInput}
                       onChange={(e) => setDreamInput(e.target.value)}
                       placeholder="Describe your dream... (e.g., 'A cyberpunk city floating in neon clouds')"
-                      className="w-full bg-transparent text-white p-4 pt-4 pb-12 min-h-[300px] focus:outline-none resize-none placeholder:text-slate-600 font-medium text-lg border border-white/5 rounded-xl focus:border-cyan-500/50 transition-colors"
+                      className="w-full h-full bg-black text-white p-6 pt-6 pb-12 focus:outline-none resize-none placeholder:text-slate-600 font-normal text-base lg:text-lg border border-slate-800 rounded-lg focus:border-cyan-500/50 transition-colors flex-1"
                     />
                     
                     {/* Dictation Control Bar (Absolute Bottom Right) */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-black/80 backdrop-blur-sm border border-white/10 rounded-xl p-1.5 shadow-xl z-20">
-                        {/* Status Dot */}
-                        <div 
-                            className={`w-2 h-2 rounded-full mx-1.5
-                                ${connections.transcriptionProvider === 'local' 
-                                    ? (localTranscriber.isModelLoading ? 'bg-yellow-400 animate-pulse' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]')
-                                    : (connections.transcriptionKey ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]')
-                                }
-                            `}
-                            title={
-                                connections.transcriptionProvider === 'local' 
-                                    ? (localTranscriber.isModelLoading ? 'Model Downloading...' : 'Local Model Ready')
-                                    : (connections.transcriptionKey ? 'API Key Set' : 'Missing API Key')
-                            }
-                        />
-
-                        {/* Provider Selector */}
-                        <div className="relative group">
-                            <select
-                                value={connections.transcriptionProvider}
-                                onChange={(e) => updateConnection('transcriptionProvider', e.target.value)}
-                                className="appearance-none bg-transparent text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white focus:outline-none pr-4 cursor-pointer"
-                            >
-                                <option value="local" className="bg-slate-900 text-slate-300">Local</option>
-                                <option value="groq" className="bg-slate-900 text-slate-300">Groq</option>
-                                <option value="openai" className="bg-slate-900 text-slate-300">OpenAI</option>
-                            </select>
-                            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white" />
-                        </div>
-
-                        {/* Divider */}
-                        <div className="w-px h-4 bg-white/10 mx-1"></div>
-
-                        {/* Settings Shortcut */}
-                        <button 
-                            onClick={() => setIsSystemSettingsOpen(true)}
-                            className="p-1.5 text-slate-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                            title="Configure Voice Settings"
-                        >
-                            <Settings className="w-3 h-3" />
-                        </button>
-
-                        {/* Dictate Button */}
-                        <button
-                            onClick={isRecording ? stopRecording : startRecording}
-                            disabled={isTranscribing || (connections.transcriptionProvider !== 'local' && !connections.transcriptionKey)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
-                                ${isRecording 
-                                    ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse' 
-                                    : 'bg-white/10 text-slate-300 hover:text-white hover:bg-white/20'}
-                                ${isTranscribing || (connections.transcriptionProvider !== 'local' && !connections.transcriptionKey) ? 'opacity-50 cursor-not-allowed' : ''}
-                            `}
-                        >
-                            {isTranscribing ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : isRecording ? (
-                                <Square className="w-3 h-3 fill-current" />
-                            ) : (
-                                <Mic className="w-3 h-3" />
-                            )}
-                            <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Dictate'}</span>
-                        </button>
-                    </div>
+                    <DictationControl
+                        connections={connections}
+                        updateConnection={updateConnection}
+                        localTranscriber={localTranscriber}
+                        isRecording={isRecording}
+                        isTranscribing={isTranscribing}
+                        onRecordToggle={isRecording ? stopRecording : startRecording}
+                        onOpenSettings={() => setIsDictationSettingsOpen(true)}
+                    />
                   </div>
 
                    {/* Model Selector & Status */}
@@ -408,16 +387,16 @@ function AppContent() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-3 bg-white/5 border-t border-white/5 rounded-xl border-x-0 border-b-0">
+                  <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-0 px-4 py-3 bg-white/5 border-t border-white/5 rounded-xl border-x-0 border-b-0">
                     {/* Left: Attachment */}
-                    <div className="flex items-center gap-2 justify-start">
+                    <div className="flex items-center gap-2 justify-center md:justify-start order-2 md:order-1">
                         <button 
                             onClick={() => startInputRef.current?.click()}
                             className={`transition-colors flex items-center gap-2 ${attachments.length > 0 ? 'text-purple-400' : 'text-slate-500 hover:text-white'}`}
                         >
                             <ImageIcon className="w-5 h-5" />
                             <span className="text-xs font-bold uppercase tracking-wider">
-                                {attachments.length > 0 ? attachments[0].file.name.slice(0, 15) : 'Attach Media'}
+                                {attachments.length > 0 ? attachments[0].file.name.slice(0, 15) : 'Attach'}
                             </span>
                         </button>
                         {attachments.length > 0 && (
@@ -434,27 +413,37 @@ function AppContent() {
                         />
                     </div>
 
-                    {/* Center: Analyze Button */}
-                    <div className="flex justify-center">
+                    {/* Center: Loop Mode Toggle */}
+                    <div className="flex items-center justify-center gap-3 order-1 md:order-2">
+                        <span className={`text-[10px] uppercase font-bold transition-colors ${!iterativeMode ? 'text-white' : 'text-slate-600'}`}>Single</span>
+                         <button
+                            onClick={() => setIterativeMode(!iterativeMode)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${iterativeMode ? 'bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.4)]' : 'bg-slate-700'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transform transition-transform duration-300 ${iterativeMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                        <span className={`text-[10px] uppercase font-bold transition-colors ${iterativeMode ? 'text-purple-400' : 'text-slate-600'}`}>Loop</span>
+                    </div>
+
+                    {/* Right: Analyze Button */}
+                    <div className="flex justify-center md:justify-end order-3">
                         <button
                             onClick={handleAnalyze}
                             disabled={dreamState.isLoading || !dreamInput.trim()}
-                            className="bg-white text-black hover:bg-slate-200 px-10 py-3 rounded-xl font-bold uppercase text-xs tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                            className="w-full md:w-auto bg-white text-black hover:bg-slate-200 px-8 py-2.5 rounded-xl font-bold uppercase text-xs tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
                         >
                             {dreamState.isLoading ? <Activity className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            {dreamState.isLoading ? 'Analyzing...' : 'Analyze Dream'}
+                            {dreamState.isLoading ? 'Analyzing...' : 'Analyze'}
                         </button>
                     </div>
-
-                    {/* Right: Spacer */}
-                    <div className="flex justify-end">
-                    </div>
-                </div>
+                  </div>
+                  {/* Spacer to balance height with Right Column's taller controls */}
+                  <div className="h-20 hidden lg:block" />
               </div>
             </div>
 
             {dreamState.analysis && (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div ref={analysisRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                 <AnalysisCard analysis={dreamState.analysis} />
               </div>
             )}
@@ -466,11 +455,10 @@ function AppContent() {
             )}
           </div>
 
-          {/* Right Column */}
-          <div className="flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-cyan-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-6 sm:p-8">
+          {/* Output/Media Section */}
+          <div ref={mediaRef} className="flex flex-col gap-4 relative scroll-mt-24">
+              <div className="relative group flex flex-col">
+                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[500px]">
              
                      {/* Visual Output Modules (Always Visible) */}
                      <MediaPanel
@@ -480,77 +468,78 @@ function AppContent() {
                           isGeneratingVideo={dreamState.isGeneratingVideo}
                               onGenerateImage={() => {
                                   handleGenerate();
-                                  setIsGenerationSettingsOpen(false); // Auto-close settings
+                                  // Auto-close settings if open (optional, but Master modal usually stays or user closes it)
+                                  setIsSystemSettingsOpen(false);
                               }}
                           onGenerateVideo={engine.generateVideo}
                           hasAnalysis={!!dreamState.analysis}
                           videoEnabled={true}
                           onSelectKey={() => { }}
                           progress={dreamState.progress}
-                          onOpenSettings={() => setIsGenerationSettingsOpen(prev => !prev)}
+                          onOpenSettings={() => setIsGenerationSettingsOpen(true)}
                           onShowWorkflow={() => setShowVisualizationModal(true)}
                           isModelSelected={!!engine.comfySettings.model}
                           // settingsContent removed to use global dialog
-                          videoSettingsContent={
-                              <VideoSettingsPanel
-                                settings={engine.videoSettings}
-                                onSettingsChange={engine.setVideoSettings}
-                              />
-                          }
+                          onOpenVideoSettings={() => setIsVideoSettingsOpen(true)}
                           availableModels={availableModels}
                           currentModel={engine.comfySettings.model || ''}
                           onModelSelect={(m) => engine.setComfySettings(prev => ({ ...prev, model: m }))}
                           isComfyConnected={engine.isComfyConnected}
-                          isVisualizing={showVisualizationModal || dreamState.isGeneratingImage}
+                          isVisualizing={showVisualizationModal || dreamState.isGeneratingImage || (!!dreamState.generatedImageUrl && dreamState.progressStatus === 'Complete')}
                           visualizationContent={
                               <div className="w-full h-full flex flex-col gap-4">
-                                  <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 tracking-widest uppercase flex items-center justify-between flex-shrink-0">
-                                    <span>{dreamState.isGeneratingImage ? "Neural Synthesis In Progress" : "Synthesis Complete"}</span>
-                                    {dreamState.isGeneratingImage && <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />}
-                                  </h3>
-                                  
-                                  <div className="w-full flex-1 bg-black/50 rounded-lg overflow-hidden border border-white/5 relative group min-h-[300px]">
-                                    <WorkflowVisualizer
-                                      settings={engine.comfySettings}
-                                      workflowType={dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) ? 'Image-to-Image' : 'Text-to-Image'}
-                                      activeNodeId={engine.activeNodeId}
-                                      inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
-                                      outputImageUrl={dreamState.generatedImageUrl}
-                                    />
-                                    {/* Overlay for interaction hint */}
-                                    <div className="absolute top-2 right-2 opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
-                                         <span className="text-[9px] font-mono text-slate-500 bg-black/80 px-1 rounded">DRAG & ZOOM ENABLED</span>
-                                    </div>
-                                  </div>
+                                  {dreamState.isGeneratingImage ? (
+                                      <>
+                                         <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 tracking-widest uppercase flex items-center justify-between flex-shrink-0">
+                                           <span>Neural Synthesis In Progress</span>
+                                           <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                                         </h3>
+                                         
+                                         <div className="w-full flex-1 bg-black/50 rounded-lg overflow-hidden border border-white/5 relative group min-h-[300px]">
+                                           <WorkflowVisualizer
+                                             settings={engine.comfySettings}
+                                             workflowType={dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) ? 'Image-to-Image' : 'Text-to-Image'}
+                                             activeNodeId={engine.activeNodeId}
+                                             inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
+                                             outputImageUrl={dreamState.generatedImageUrl}
+                                           />
+                                           {/* Overlay for interaction hint */}
+                                           <div className="absolute top-2 right-2 opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                                                <span className="text-[9px] font-mono text-slate-500 bg-black/80 px-1 rounded">DRAG & ZOOM ENABLED</span>
+                                           </div>
+                                         </div>
 
-                                   {dreamState.isGeneratingImage ? (
-                                      <div className="space-y-1 flex-shrink-0">
-                                         <div className="flex justify-between text-[10px] font-mono uppercase text-cyan-400">
-                                             <span>{dreamState.progressStatus}</span>
-                                             <span>{Math.round(dreamState.progress)}%</span>
-                                         </div>
-                                         <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
-                                             <div 
-                                                className="h-full bg-cyan-500 transition-all duration-300 ease-out"
-                                                style={{ width: `${dreamState.progress}%` }}
-                                             ></div>
-                                         </div>
-                                      </div>
-                                   ) : (
-                                       <button 
-                                            onClick={() => setShowVisualizationModal(false)}
-                                            className="w-full py-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold uppercase tracking-[0.2em] text-xs rounded-xl transition-all shadow-[0_0_30px_rgba(6,182,212,0.3)] hover:shadow-[0_0_50px_rgba(168,85,247,0.5)] flex-shrink-0 animate-in slide-in-from-bottom-2"
-                                       >
-                                            View Generated Dream
-                                       </button>
-                                   )}
-                              </div>
-                          }
-                     />
+                                          <div className="space-y-1 flex-shrink-0">
+                                             <div className="flex justify-between text-[10px] font-mono uppercase text-cyan-400">
+                                                 <span>{dreamState.progressStatus}</span>
+                                                 <span>{Math.round(dreamState.progress)}%</span>
+                                             </div>
+                                             <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+                                                 <div 
+                                                    className="h-full bg-cyan-500 transition-all duration-300 ease-out"
+                                                    style={{ width: `${dreamState.progress}%` }}
+                                                 ></div>
+                                             </div>
+                                          </div>
+                                      </>
+                                  ) : (
+                                      <ResultView 
+                                           imageUrl={dreamState.generatedImageUrl || ''}
+                                           title={dreamState.analysis?.title}
+                                           prompt={dreamState.analysis?.visualPrompt || dreamState.rawText}
+                                           onReset={() => {
+                                                setShowVisualizationModal(false);
+                                                // Function to reset state if needed?
+                                           }}
+                                      />
+                                  )}
+                             </div>
+                         }
+                    />
 
                         {/* Feedback Modal for Iterative Loop */}
                         {showFeedbackModal && (
-                          <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+                           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
                             <div className="bg-[#1a1a1c] border border-purple-500/30 p-8 rounded-2xl max-w-lg w-full shadow-[0_0_50px_rgba(168,85,247,0.2)] animate-in zoom-in-95">
                               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                                 <RotateCcw className="w-5 h-5 text-purple-400" />
@@ -590,14 +579,16 @@ function AppContent() {
                 </div>{/* End Card Inner */}
             </div>{/* End Card Wrapper */}
           </div>
-        </div>
-      </main>
-
-
+        </main>
 
       <Gallery isOpen={isGalleryOpen} onClose={() => setIsGalleryOpen(false)} />
       
-
+      <FallbackDialog
+        isOpen={dreamState.showFallbackConfirmation || false}
+        onConfirm={engine.confirmFallbackGeneration}
+        onCancel={engine.cancelFallback}
+        error={dreamState.error}
+      />
     </div>
   );
 }

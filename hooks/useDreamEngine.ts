@@ -76,20 +76,19 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         raw: true
     });
 
-    // Prevent double-checking in Strict Mode
-    const initRef = useRef(false);
-
-    // Initialization
+    // Initialization & Heartbeat
     useEffect(() => {
-        if (initRef.current) return;
-        initRef.current = true;
+        // checks removed to allow dynamic updates when settings change
 
-        // Check ComfyUI
-        checkComfyConnection(connections.comfyHost).then(connected => {
-            setIsComfyConnected(connected);
-            if (connected) {
+        const checkAllConnections = async () => {
+            // Check ComfyUI (Ping Only)
+            const comfyOnline = await checkComfyConnection(connections.comfyHost);
+            
+            // State Transition: Offline -> Online (or Initial Check)
+            if (comfyOnline && !isComfyConnected) {
+                setIsComfyConnected(true);
                 
-                // Fetch System Stats (Version)
+                // Fetch Heavy Data (Models, LoRAs, Stats) ONLY on Connect
                 import('../services/comfyService').then(m => m.getSystemStats(connections.comfyHost).then(stats => {
                     let version = "Connected";
                     if (stats && stats.system && stats.system.os) {
@@ -102,7 +101,6 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
 
                 getAvailableModels(connections.comfyHost).then(models => {
                     setAvailableModels(models);
-                    // No auto-selection of model. User must choose.
                     if (models.length > 0) {
                         addLog(`Neural Core Online (${models.length} Models Available)`);
                     } else {
@@ -110,47 +108,54 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                     }
                 });
                 getAvailableLoras(connections.comfyHost).then(loras => setAvailableLoras(loras));
-            } else {
+
+            } else if (!comfyOnline && isComfyConnected) {
+                // State Transition: Online -> Offline
+                setIsComfyConnected(false);
                 addLog("Neural Core Offline");
+                // Optional: Clear models? setAvailableModels([]); 
             }
-        });
-
-        // Check Intelligence Models
-        const checkModels = async () => {
-             // Reset checks
-             setIsCheckingModels(prev => ({ ...prev, ollama: true }));
-
-             // Parallel Checks
-             const checkOllama = async () => {
-                 const ollamaSvc = await import('../services/ollamaService');
-                 const avail = await ollamaSvc.checkOllamaConnection(connections.ollamaHost);
-                 
-                 let version = "Unknown";
-                 if (avail) {
-                     const ver = await ollamaSvc.getOllamaVersion(connections.ollamaHost);
-                     version = ver || "Unknown";
-                     setEngineVersions(prev => ({ ...prev, ollama: version }));
-                 }
-                 
-                 setModelAvailability(prev => ({ ...prev, ollama: avail }));
-                 setIsCheckingModels(prev => ({ ...prev, ollama: false }));
-                 return { avail, version };
-             };
-
-             const [ollamaResult] = await Promise.all([checkOllama()]);
-             
-             if(ollamaResult.avail) {
-                 const textModel = import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest';
-                 addLog(`Ollama Detected (v${ollamaResult.version}) - Model: ${textModel}`);
-             }
+            
+            // Check Ollama (Ping Only) - Conditional: Only if selected or initializing
+            const shouldCheckOllama = analysisModel === 'ollama' || analysisModel === null;
+            
+            if (shouldCheckOllama) {
+                const ollamaSvc = await import('../services/ollamaService');
+                const ollamaOnline = await ollamaSvc.checkOllamaConnection(connections.ollamaHost);
+                
+                if (ollamaOnline && !modelAvailability.ollama) {
+                    // State Transition: Offline -> Online
+                    setModelAvailability(prev => ({ ...prev, ollama: true }));
+                    
+                    // Fetch Version only on connect
+                    const ver = await ollamaSvc.getOllamaVersion(connections.ollamaHost);
+                    const version = ver || "Unknown";
+                    setEngineVersions(prev => ({ ...prev, ollama: version }));
+    
+                    const textModel = import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest';
+                    addLog(`Ollama Detected (v${version}) - Model: ${textModel}`);
+    
+                } else if(!ollamaOnline && modelAvailability.ollama) {
+                    // State Transition: Online -> Offline
+                    setModelAvailability(prev => ({ ...prev, ollama: false }));
+                    // addLog("Ollama Connection Lost"); // Optional logging
+                }
+            }
         };
-        checkModels();
+
+        // Initial check
+        checkAllConnections();
+
+        // Heartbeat Interval (10 seconds)
+        const intervalId = setInterval(checkAllConnections, 10000);
 
         const hostname = window.location.hostname;
         if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
             setIsRemote(true);
         }
-    }, [addLog, connections.comfyHost, connections.ollamaHost]);
+
+        return () => clearInterval(intervalId);
+    }, [addLog, connections.comfyHost, connections.ollamaHost, isComfyConnected, modelAvailability.ollama, availableModels.length, analysisModel]);
 
     const processDream = async (dreamInput: string, attachments: DreamAttachment[] = []) => {
         if (!analysisModel) {
@@ -241,8 +246,9 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         }
     };
 
-    const generateImage = async (originalPrompt: string, inputImage?: File) => {
-        if (!dreamState.analysis) return;
+    const generateImage = async (originalPrompt: string, inputImage?: File, analysisOverride?: any) => {
+        const analysisToUse = analysisOverride || dreamState.analysis;
+        if (!analysisToUse) return;
         
         if (!comfySettings.model) {
             addLog("[Error] No Neural Model Selected. Please configure in settings.");
@@ -272,7 +278,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                 setDreamState(prev => ({ ...prev, progress: 100, progressStatus: 'Complete' }));
             } else {
                 imageUrl = await generateComfyImage(
-                    dreamState.analysis.visualPrompt,
+                    analysisToUse.visualPrompt,
                     originalPrompt,
                     (val, max) => {
                         setDreamState(prev => ({
@@ -303,7 +309,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                 await saveDreamToDatabase({
                     id: crypto.randomUUID(),
                     rawText: dreamState.rawText || originalPrompt, // Fallback to prompt if rawText missing
-                    analysis: dreamState.analysis,
+                    analysis: analysisToUse,
                     generatedImageUrl: imageUrl
                 });
                 addLog("Dream Saved to History");
@@ -389,25 +395,22 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
     };
 
     const confirmFallbackGeneration = () => {
+        const dummyAnalysis = {
+            title: "Direct Generation",
+            summary: "Analysis bypassed.",
+            interpretation: "Direct interpretation of raw input.",
+            symbolism: [],
+            visualPrompt: dreamState.rawText || "No Input"
+        };
+
         setDreamState(prev => ({
           ...prev,
           showFallbackConfirmation: false,
           error: null, // Clear error
-          analysis: { // Create dummy analysis using raw prompt
-              title: "Direct Generation",
-              summary: "Analysis bypassed.",
-              interpretation: "Direct interpretation of raw input.",
-              symbolism: [],
-              visualPrompt: prev.rawText
-          }
+          analysis: dummyAnalysis
         }));
-        addLog("Fallback confirmed. Using original text for generation.");
-        // We need to wait for state update before generating, but since generating uses params we can pass directly:
-        // Actually generateImage reads from state.analysis. We need to manually trigger it after state update or pass a forced analysis.
-        // Better: Update state then trigger generation effect? Or just call generate with the raw text constructed as analysis.
-        
-        // Simpler approach: manual call with crafted analysis
-        generateImage(dreamState.rawText); 
+        addLog("Fallback confirmed. Ready for manual generation.");
+        // generateImage(dreamState.rawText || "", undefined, dummyAnalysis); // Removed to allow manual config
     };
 
     const cancelFallback = () => {

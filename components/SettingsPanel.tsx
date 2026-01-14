@@ -58,11 +58,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
   const modelOptions = (availableModels && availableModels.length > 0) ? availableModels : DEFAULT_MODELS;
   
   return (
-    <div className="w-full bg-[#0F0F11] border border-white/10 rounded-2xl p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-            <Settings className="w-4 h-4 text-cyan-500" />
-            Neural Configuration
-        </h3>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col pr-2">
 
         <div className="space-y-8 flex-1 overflow-y-auto custom-scrollbar pr-2">
             
@@ -179,6 +175,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                         </select>
                      </div>
                 </div>
+
+                {/* Denoise (Image-to-Image) */}
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                    <label className="text-[10px] uppercase font-bold text-pink-500 flex justify-between">
+                         <span>Denoise (Img2Img)</span> <span className="text-white">{settings.denoise}</span>
+                    </label>
+                    <input
+                        type="range" min="0.0" max="1.0" step="0.05"
+                        value={settings.denoise || 0.75}
+                        onChange={(e) => handleChange('denoise', parseFloat(e.target.value))}
+                        className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg cursor-pointer"
+                    />
+                </div>
             </div>
 
             {/* Output Dims */}
@@ -214,20 +223,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
 
         
         {/* Done Button */}
-        <div className="pt-4 mt-auto">
-            <button
-                onClick={onDone}
-                disabled={!settings.model}
-                className={`
-                    w-full py-2 rounded-lg font-bold uppercase text-[10px] tracking-widest transition-all
-                    ${settings.model 
-                        ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500 hover:text-black shadow-[0_0_15px_rgba(6,182,212,0.2)]' 
-                        : 'bg-white/5 text-slate-600 cursor-not-allowed border border-white/5'}
-                `}
-            >
-                {settings.model ? 'Confirm Configuration' : 'Select Model to Proceed'}
-            </button>
-        </div>
+
     </div>
   );
 };

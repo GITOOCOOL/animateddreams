@@ -28,3 +28,4 @@ dreams.db
 saved_dreams/
 check_db.cjs
 debug_comfy.cjs
+.env
