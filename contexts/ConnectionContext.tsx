@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS: ConnectionSettings = {
     ollamaHost: import.meta.env.VITE_OLLAMA_API_HOST || 'http://127.0.0.1:11434',
     comfyHost: import.meta.env.VITE_COMFY_API_HOST || 'http://127.0.0.1:8188',
     // In dev, usually localhost:3001, but we can allow override
-    backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
+    backendUrl: import.meta.env.VITE_BACKEND_URL || '',
     transcriptionProvider: import.meta.env.VITE_GROQ_API_KEY ? 'groq' : 'local',
     transcriptionKey: import.meta.env.VITE_GROQ_API_KEY || '',
     transcriptionUrl: 'https://api.openai.com/v1/audio/transcriptions',

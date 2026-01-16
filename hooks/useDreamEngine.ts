@@ -6,6 +6,17 @@ import { saveDreamToDatabase } from '../services/storageService';
 import { DreamState, ComfySettings, VideoSettings, DreamAttachment } from '../types';
 import { useConnections } from '../contexts/ConnectionContext';
 
+// Polyfill for crypto.randomUUID in insecure contexts (HTTP LAN)
+const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Simple UUID v4 polyfill
+    return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+        (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> (+c / 4)).toString(16)
+    );
+};
+
 export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mockAnalysis: false, mockGeneration: false }) => {
     const { connections } = useConnections();
     const [dreamState, setDreamState] = useState<DreamState>({
@@ -307,7 +318,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
             // Save to Database
             try {
                 await saveDreamToDatabase({
-                    id: crypto.randomUUID(),
+                    id: generateUUID(),
                     rawText: dreamState.rawText || originalPrompt, // Fallback to prompt if rawText missing
                     analysis: analysisToUse,
                     generatedImageUrl: imageUrl

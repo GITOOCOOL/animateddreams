@@ -4,6 +4,17 @@ import svdWorkflowTemplate from './workflow_svd.json';
 import { ComfySettings, VideoSettings } from '../types';
 
 // Helper to get WS URL from HTTP Host
+// Polyfill for crypto.randomUUID in insecure contexts (HTTP LAN)
+const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Simple UUID v4 polyfill
+    return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+        (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> (+c / 4)).toString(16)
+    );
+};
+
 const getWsUrl = (host: string, clientId: string) => {
     if (host.startsWith('/')) {
         // It's a relative path (proxy), use window.location
@@ -303,7 +314,7 @@ export const generateComfyImage = async (
   }
 
   const workflow = modifyWorkflow(workflowTmpl, visualPrompt, originalPrompt, settings, uploadedFilename);
-  const clientId = crypto.randomUUID();
+  const clientId = generateUUID();
 
   return new Promise((resolve, reject) => {
     const wsUrl = getWsUrl(host, clientId);
@@ -517,7 +528,7 @@ export const generateComfyVideo = async (
     }
 
     const workflow = modifySvdWorkflow(svdWorkflowTemplate, inputFilename, settings);
-    const clientId = crypto.randomUUID();
+    const clientId = generateUUID();
 
     return new Promise((resolve, reject) => {
         const wsUrl = getWsUrl(host, clientId);
