@@ -183,7 +183,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                     </label>
                     <input
                         type="range" min="0.0" max="1.0" step="0.05"
-                        value={settings.denoise || 0.75}
+                        value={settings.denoise !== undefined ? settings.denoise : 0.75}
                         onChange={(e) => handleChange('denoise', parseFloat(e.target.value))}
                         className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg cursor-pointer"
                     />

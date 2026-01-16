@@ -22,6 +22,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
     const [dreamState, setDreamState] = useState<DreamState>({
         isLoading: false,
         progress: 0,
+        analysisProgress: 0,
         progressStatus: 'Ready',
         rawText: '',
         attachments: [],
@@ -178,7 +179,9 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         setDreamState(prev => ({
             ...prev,
             isLoading: true,
-            progress: 10,
+            isAnalyzing: true, // Show analysis progress bar
+            analysisProgress: 10,
+            progress: 0, // Ensure generation bar is reset
             progressStatus: analysisModel === 'raw' ? 'Skipping Analysis...' : `Analyzing Pattern (${analysisModel})...`,
             error: null,
             analysis: null,
@@ -200,7 +203,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
              setDreamState(prev => ({
                 ...prev,
                 analysis: dummyAnalysis,
-                progress: 40,
+                analysisProgress: 100,
                 progressStatus: 'Ready for Generation'
             }));
             addLog("Visual Prompt Ready (Raw)");
@@ -235,7 +238,8 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
             setDreamState(prev => ({
                 ...prev,
                 analysis,
-                progress: 40,
+                isAnalyzing: false, // Hide analysis progress bar
+                analysisProgress: 100,
                 progressStatus: 'Analysis Complete'
             }));
             addLog("Visual Prompt Generated");            
@@ -271,6 +275,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
             ...prev,
             isGeneratingImage: true,
             progress: 0,
+            analysisProgress: 0, // Hide analysis bar
             progressStatus: 'Initializing Core...',
             generatedImageUrl: undefined
         }));
@@ -400,7 +405,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
     };
 
     const resetState = () => {
-        setDreamState({ isLoading: false, progress: 0, progressStatus: 'Ready' });
+        setDreamState({ isLoading: false, progress: 0, analysisProgress: 0, progressStatus: 'Ready', rawText: '', attachments: [], analysis: null, generatedImageUrl: null, generatedVideoUrl: null, isAnalyzing: false, isGeneratingImage: false, isGeneratingVideo: false, error: null, showFallbackConfirmation: false });
         setActiveNodeId(null);
         addLog("System Reset");
     };

@@ -233,27 +233,29 @@ function AppContent() {
 
     // Update Analysis with new Feedback
     addLog("[Iterative] Refining prompt based on feedback...");
-    dispatch({ type: 'SET_STATE', payload: {
+    setDreamState(prev => ({
+      ...prev,
       isLoading: true,
       progressStatus: 'Refining Vision...'
-    }});
+    }));
 
     try {
       // Send (Original + Visual + Feedback) to Gemini to get NEW Visual Prompt
       const combinedPrompt = `Original: ${dreamInput}. Previous Visual: ${dreamState.analysis?.visualPrompt}. User Feedback: ${feedbackPrompt}. IMPROVE the visual prompt.`;
       const newAnalysis = await analyzeDreamGemini(combinedPrompt);
 
-      dispatch({ type: 'SET_STATE', payload: {
+      setDreamState(prev => ({
+        ...prev,
         analysis: newAnalysis,
         isLoading: false
-      }});
+      }));
 
       // Auto-trigger generation again
       handleGenerate();
 
     } catch (e) {
       addLog(`[Error] Refinement Failed: ${e}`);
-      dispatch({ type: 'SET_STATE', payload: { isLoading: false }});
+      setDreamState(prev => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -386,6 +388,18 @@ function AppContent() {
                         onConfigure={() => setIsAnalysisSettingsOpen(true)}
                     />
                   </div>
+
+                  {/* Analysis Progress Bar */}
+                  {dreamState.isAnalyzing && (
+                      <div className="mb-4 px-1">
+                          <ProgressBar 
+                              progress={dreamState.analysisProgress} 
+                              label="ANALYZING TEXT PATTERNS" 
+                              statusText={dreamState.progressStatus}
+                              color="purple"
+                          />
+                      </div>
+                  )}
 
                   <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-0 px-4 py-3 bg-white/5 border-t border-white/5 rounded-xl border-x-0 border-b-0">
                     {/* Left: Attachment */}

@@ -82,7 +82,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                         </div>
                     ) : imageUrl ? (
                         <div className="w-full h-full relative">
-                            <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-cover" />
+                            <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-contain" />
                             <div className="absolute inset-0 border-2 border-cyan-500/0 group-hover:border-cyan-500/50 transition-all pointer-events-none"></div>
                             <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
                                 <p className="text-cyan-400 text-xs font-mono">SOURCE: GENERATED_VISUAL</p>

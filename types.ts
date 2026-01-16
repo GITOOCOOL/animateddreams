@@ -47,6 +47,12 @@ export interface DreamState {
   isGeneratingVideo: boolean;
   error: string | null;
   showFallbackConfirmation?: boolean;
+  
+  // Progress State
+  isLoading: boolean;
+  progress: number; // For Neural Generation
+  progressStatus: string;
+  analysisProgress: number; // For Text Analysis
 }
 
 declare global {
