@@ -1,6 +1,6 @@
 import React from 'react';
 import { Settings, Sliders, Activity, Zap, Layers, Image as ImageIcon, Box } from 'lucide-react';
-import { ComfySettings } from '../types';
+import { ComfySettings, DreamAttachment } from '../types';
 import WorkflowVisualizer from './WorkflowVisualizer';
 
 interface SettingsPanelProps {
@@ -9,6 +9,7 @@ interface SettingsPanelProps {
   onDone: () => void;
   availableModels: string[];
   availableLoras: string[];
+  inputImage?: DreamAttachment;
 }
 
 const DEFAULT_MODELS = [
@@ -34,14 +35,20 @@ const SCHEDULERS = [
   'sgm_uniform',
 ];
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChange, onDone, availableModels, availableLoras }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChange, onDone, availableModels, availableLoras, inputImage }) => {
   const [showValidation, setShowValidation] = React.useState(false);
 
-  const handleChange = (key: keyof ComfySettings, value: string | number) => {
-    onSettingsChange({
-      ...settings,
-      [key]: value
-    });
+  const handleChange = (key: keyof ComfySettings, value: string | number | boolean) => {
+    const newSettings = { ...settings, [key]: value };
+
+    // Auto-sync dimensions if "Use Original Size" is enabled
+    if (key === 'useOriginalDimensions' && value === true && inputImage?.width && inputImage?.height) {
+        newSettings.width = inputImage.width;
+        newSettings.height = inputImage.height;
+    }
+
+    onSettingsChange(newSettings);
+
     // Clear validation if model is selected
     if (key === 'model' && value) setShowValidation(false);
   };
@@ -188,7 +195,45 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                         className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg cursor-pointer"
                     />
                 </div>
+
+                {/* Face Match (IP-Adapter) Toggle */}
+                <div className="space-y-2 pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] uppercase font-bold text-cyan-400 flex items-center gap-2">
+                            <span>Face Identity Match</span>
+                            <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-[8px] text-cyan-400 border border-cyan-400/30">PRO</span>
+                        </label>
+                        <button
+                            onClick={() => handleChange('useIpAdapter', !settings.useIpAdapter)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${settings.useIpAdapter ? 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.4)]' : 'bg-slate-700'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transform transition-transform duration-300 ${settings.useIpAdapter ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+                    <p className="text-[9px] text-slate-500">
+                        Uses IP-Adapter to strictly preserve face identity. Requires <span className="text-slate-400">ip-adapter-plus_sdxl_vit-h</span> model.
+                    </p>
+                </div>
+                {/* Original Size Toggle */}
+                <div className="space-y-2 pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-2">
+                            <span>Use Original Size</span>
+                        </label>
+                        <button
+                            onClick={() => handleChange('useOriginalDimensions', !settings.useOriginalDimensions)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${settings.useOriginalDimensions ? 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.4)]' : 'bg-slate-700'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transform transition-transform duration-300 ${settings.useOriginalDimensions ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+                    <p className="text-[9px] text-slate-500">
+                        Bypasses auto-resizing. Use strict input dimensions (Caution: May cause stripes if not SDXL-friendly).
+                    </p>
+                </div>
             </div>
+
+
 
             {/* Output Dims */}
             <div className="space-y-4">

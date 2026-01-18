@@ -5,6 +5,7 @@ export interface DreamAnalysis {
   interpretation: string;
   symbolism: string[];
   visualPrompt: string; // Optimized prompt for image/video generation
+  mood?: string; // Psychological mood (Dual Agent)
 }
 
 export interface DreamAttachment {
@@ -13,6 +14,8 @@ export interface DreamAttachment {
   previewUrl: string;
   base64: string; // Raw base64 data without prefix for API
   mimeType: string;
+  width?: number;
+  height?: number;
 }
 
 export interface ComfySettings {
@@ -27,6 +30,21 @@ export interface ComfySettings {
   lora?: string;
   loraStrength?: number;
   seed?: number; // Optional seed override
+  useIpAdapter?: boolean; // Face Matching
+  useOriginalDimensions?: boolean; // Bypass resizing
+}
+
+export interface AgentConfig {
+  model: string;
+  temperature: number;
+  systemPrompt?: string; // Optional override
+  provider: 'ollama' | 'gemini';
+}
+
+export interface DualAgentSettings {
+  useDualAgent: boolean; // Master toggle
+  psychologist: AgentConfig;
+  visualizer: AgentConfig;
 }
 
 export interface VideoSettings {

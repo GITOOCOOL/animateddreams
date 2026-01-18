@@ -8,6 +8,8 @@ interface ConnectionSettings {
     transcriptionKey: string;
     transcriptionUrl: string;
     transcriptionModel: string;
+    runpodServerId?: string;
+    runpodApiKey?: string;
 }
 
 interface ConnectionContextType {
@@ -26,7 +28,9 @@ const DEFAULT_SETTINGS: ConnectionSettings = {
     transcriptionProvider: import.meta.env.VITE_GROQ_API_KEY ? 'groq' : 'local',
     transcriptionKey: import.meta.env.VITE_GROQ_API_KEY || '',
     transcriptionUrl: 'https://api.openai.com/v1/audio/transcriptions',
-    transcriptionModel: 'whisper-1' 
+    transcriptionModel: 'whisper-1',
+    runpodServerId: '',
+    runpodApiKey: ''
 };
 
 export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

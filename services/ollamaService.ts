@@ -29,6 +29,22 @@ export const getOllamaVersion = async (host: string): Promise<string | null> => 
 };
 
 /**
+ * Fetches available Ollama models.
+ */
+export const getOllamaModels = async (host: string): Promise<string[]> => {
+    try {
+        const response = await fetch(`${host}/api/tags`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        // data.models is an array of objects { name: "llama3:latest", ... }
+        return data.models?.map((m: any) => m.name) || [];
+    } catch (e) {
+        console.warn("Failed to fetch Ollama models:", e);
+        return [];
+    }
+};
+
+/**
  * Analyzes dream text using local Ollama model.
  */
 /**
@@ -45,74 +61,168 @@ const generateFallbackAnalysis = (text: string): DreamAnalysis => {
   };
 };
 
-export const analyzeDreamTextOllama = async (dreamText: string, attachments: DreamAttachment[] = [], host: string): Promise<DreamAnalysis> => {
-  // Determine if this is a vision task or pure text task
-  const hasImages = attachments.length > 0;
 
-  // Select the appropriate model
-  // If images exist => Use Vision Model (default: llava)
-  // If text only => Use Text Model (default: llama3)
-  const model = hasImages
-    ? (import.meta.env.VITE_OLLAMA_VISION_MODEL || 'llava:latest')
-    : (import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest');
 
-  console.log(`[Ollama] Analyzing with model: ${model} (Has Images: ${hasImages})`);
 
-  const systemPrompt = `
-    You are an expert dream interpreter.
-    Analyze the following dream memory.
+
+/**
+ * Helper to call Ollama with a specific system prompt
+ */
+/**
+ * Helper to call Ollama with a specific system prompt
+ */
+const callOllamaAgent = async (
+    host: string, 
+    model: string, 
+    systemPrompt: string, 
+    userPrompt: string, 
+    temperature: number, 
+    images: string[] = [],
+    addLog?: (msg: string) => void
+): Promise<any> => {
     
-    Return ONLY valid JSON with this exact structure:
-    {
-      "title": "A cryptic title",
-      "summary": "Short summary",
-      "interpretation": "Psychological interpretation",
-      "symbolism": ["symbol1", "symbol2"],
-      "visualPrompt": "A highly descriptive visual prompt for image generation, focusing on lighting and suralism."
-    }
-    
-    Do not include any text before or after the JSON.
-    
-    Dream Memory: "${dreamText}"
-  `;
+    const log = (msg: string) => {
+        if (addLog) addLog(msg);
+    };
 
-  // Extract base64 images if any
-  const images = attachments.map(att => att.base64);
-
-  try {
-    const response = await fetch(`${host}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const payload = {
         model: model,
-        prompt: systemPrompt,
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt, images: images.length > 0 ? images : undefined }
+        ],
         stream: false,
-        format: "json",
         options: {
-          num_ctx: 2048, // Reduce context window to save VRAM
-          num_predict: 512, // Limit output tokens
-          temperature: 0.7
+            temperature: temperature
+        }
+    };
+
+    log(`POST /api/chat [Model: ${model}]`);
+
+    console.log(`[Ollama Raw] Model: ${model}, Payload sent.`);
+
+    const response = await fetch(`${host}/api/chat`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
         },
-        images: images.length > 0 ? images : undefined
-      })
+        body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama API Error: ${response.statusText}`);
+        log(`Error: ${response.statusText}`);
+        throw new Error(`Ollama Error: ${response.statusText}`);
     }
 
-    const data = await response.json()
+    const data = await response.json();
+    
+    const textResponse = data.message?.content || data.response;
 
-    // Ollama 'json' format usually returns a stringified JSON object in 'response'
-    const result = JSON.parse(data.response) as DreamAnalysis;
+    if (!textResponse) {
+        log("Error: No 'message.content' or 'response' field in Ollama output");
+        console.error("Ollama Unexpected Response:", data);
+        throw new Error("Ollama returned invalid format");
+    }
 
-    // Logic to append dreamText removed to keep prompts separate for metadata injection
+    log(`Response Received (${textResponse.length} chars)`);
+    console.log(`[Ollama Raw] Model: ${model}, Response:`, textResponse);
 
-    return result;
-
-  } catch (error: any) {
-    console.error("Ollama Analysis Failed:", error);
-    // Rethrow to allow UI to show the error state instead of failing silently with a mock
-    throw error;
-  }
+    try {
+        return JSON.parse(textResponse);
+    } catch (e) {
+        log(`JSON Parse Error: ${e}`);
+        console.error("[Ollama JSON Parse Error] Failed to parse:", textResponse);
+        // Fallback: Try to find JSON object if wrapped in text
+        const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                return JSON.parse(jsonMatch[0]);
+            } catch (e2) {
+                console.error("Fallback JSON parse failed.");
+            }
+        }
+        // CRITICAL FIX: Return raw string instead of throwing, so validateAnalysis can rescue it
+        console.warn("[Ollama] Returning raw text response for fallback handling.");
+        return textResponse;
+    }
 };
+
+
+// Helper for validation (Enhanced for Single Pass)
+const validateAnalysis = (result: any): DreamAnalysis => {
+    // If result is just a string or null, provide full fallback
+    if (typeof result !== 'object' || result === null) {
+        return {
+            title: "Untitled Dream Analysis",
+            summary: "The AI returned raw text instead of structured data.",
+            interpretation: typeof result === 'string' ? result : "Interpretation unavailable.",
+            symbolism: [],
+            mood: "Ambiguous",
+            visualPrompt: typeof result === 'string' ? result.slice(0, 300) : "surreal abstract dreamscape, high quality, 8k"
+        };
+    }
+
+    // Ensure all fields exist with defaults
+    return {
+        title: result.title || "Untitled Dream",
+        summary: result.summary || "No summary provided.",
+        interpretation: result.interpretation || "Interpretation unavailable.",
+        symbolism: Array.isArray(result.symbolism) ? result.symbolism : [],
+        mood: result.mood || "Mysterious",
+        visualPrompt: result.visualPrompt || result.visual_prompt || "surreal dream scene, cinematic lighting, 8k, highly detailed"
+    };
+};
+
+export const analyzeDreamTextOllama = async (
+    dreamText: string, 
+    attachments: DreamAttachment[] = [], 
+    host: string, 
+    settings?: import('../types').DualAgentSettings,
+    addLog?: (msg: string) => void
+): Promise<DreamAnalysis> => {
+  const hasImages = attachments.length > 0;
+  const images = attachments.map(att => att.base64);
+
+  // Use Psychologist settings as the "Main" settings for single-pass
+  // Logic: The user likely selected their best "Smart" model for the Psychologist
+  const model = settings?.psychologist.model || (hasImages ? (import.meta.env.VITE_OLLAMA_VISION_MODEL || 'llava:latest') : (import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest'));
+  const temperature = settings?.psychologist.temperature ?? 0.7;
+
+  const log = (msg: string) => {
+      console.log(`[Ollama] ${msg}`);
+      if (addLog) addLog(msg);
+  };
+
+  log(`Starting Single-Pass Analysis with model: ${model}`);
+
+  // Combined System Prompt
+  const systemPrompt = `
+    You are an expert Dream Interpreter and Visual Artist.
+    Your goal is to analyze the user's dream and describe it visually.
+
+    1. ANLYZE the dream for hidden meaning, symbolism, and mood.
+    2. CREATE a "visualPrompt" for Stable Diffusion that captures this scene artistically.
+
+    Return ONLY valid JSON with this exact structure:
+    {
+      "title": "Short poetic title",
+      "summary": "Brief summary of the dream",
+      "interpretation": "Deep psychological meaning",
+      "symbolism": ["symbol1", "symbol2", "symbol3"],
+      "mood": "Emotional atmosphere",
+      "visualPrompt": "Detailed, comma-separated image generation prompt, focusing on visual elements, lighting, and style. NO text."
+    }
+  `;
+
+  log("Sending request...");
+  // Pass logger to inner helper via closure or argument. 
+  // Let's pass it to callOllamaAgent explicitly to get raw logs.
+  const rawResult = await callOllamaAgent(host, model, systemPrompt, dreamText, temperature, images, addLog);
+  
+  const finalResult = validateAnalysis(rawResult);
+  log(`Analysis Complete: ${finalResult.title}`);
+
+  return finalResult;
+};
+
+

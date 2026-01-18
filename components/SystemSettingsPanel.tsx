@@ -1,5 +1,5 @@
 import React from 'react';
-import { Network, Activity, RefreshCw, Check, X, AlertTriangle, Mic } from 'lucide-react';
+import { Network, Activity, RefreshCw, Check, X, AlertTriangle, Mic, Box } from 'lucide-react';
 import { useConnections } from '../contexts/ConnectionContext';
 import { checkComfyConnection } from '../services/comfyService';
 import { checkOllamaConnection } from '../services/ollamaService';
@@ -80,19 +80,22 @@ const SystemSettingsPanel: React.FC = () => {
                 </div>
 
                 {/* Comfy Host */}
-                <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 flex justify-between">ComfyUI Host (Generation)</label>
+                <div className={`space-y-2 ${connections.runpodServerId ? 'opacity-50' : ''}`}>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 flex justify-between">
+                        {connections.runpodServerId ? 'ComfyUI Host (Disabled by RunPod)' : 'ComfyUI Host (Generation)'}
+                    </label>
                     <div className="flex gap-2">
                         <input 
                             type="text" 
+                            disabled={!!connections.runpodServerId}
                             value={connections.comfyHost}
                             onChange={(e) => updateConnection('comfyHost', e.target.value)}
-                            className="flex-1 bg-black/50 border border-white/10 rounded-lg p-3 text-xs text-slate-300 outline-none focus:border-cyan-500 font-mono transition-colors"
+                            className="flex-1 bg-black/50 border border-white/10 rounded-lg p-3 text-xs text-slate-300 outline-none focus:border-cyan-500 font-mono transition-colors disabled:cursor-not-allowed"
                             placeholder="http://127.0.0.1:8188"
                         />
                         <button 
                                 onClick={() => handleTestConnection('comfy')}
-                                disabled={testStatus.comfy === 'testing'}
+                                disabled={testStatus.comfy === 'testing' || !!connections.runpodServerId}
                                 className={`px-4 rounded-lg border flex items-center justify-center transition-colors
                                 ${testStatus.comfy === 'success' ? 'bg-green-500/20 border-green-500 text-green-500' : 
                                     testStatus.comfy === 'error' ? 'bg-red-500/20 border-red-500 text-red-500' : 
@@ -104,6 +107,37 @@ const SystemSettingsPanel: React.FC = () => {
                                 <Activity className="w-4 h-4"/>}
                         </button>
                     </div>
+                </div>
+
+                {/* RunPod Configuration */}
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                     <label className={`text-[10px] uppercase font-bold flex items-center gap-2 ${connections.runpodServerId ? 'text-green-500' : 'text-slate-500'}`}>
+                        <Box className="w-3 h-3" /> RunPod Cloud Server
+                    </label>
+                    <div className="space-y-2">
+                        <input
+                            type="text"
+                            placeholder="Server ID (e.g. vllm-abc12345)"
+                            value={connections.runpodServerId || ''}
+                            onChange={(e) => updateConnection('runpodServerId', e.target.value)}
+                            className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-xs text-slate-300 outline-none focus:border-green-500 hover:bg-black/70 font-mono"
+                        />
+                        <p className="text-[9px] text-slate-600">
+                            Entering an ID will override the local ComfyUI Host.
+                        </p>
+                    </div>
+
+                    {connections.runpodServerId && (
+                         <div className="space-y-2">
+                            <input
+                                type="password"
+                                placeholder="RunPod API Key (Optional)"
+                                value={connections.runpodApiKey || ''}
+                                onChange={(e) => updateConnection('runpodApiKey', e.target.value)}
+                                className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-xs text-slate-300 outline-none focus:border-green-500 hover:bg-black/70 font-mono"
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

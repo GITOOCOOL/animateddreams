@@ -1,5 +1,6 @@
 import workflowTemplate from '../workflow_template.json';
 import img2imgWorkflowTemplate from '../workflow_img2img.json';
+import ipadapterWorkflowTemplate from '../workflow_ipadapter.json';
 import svdWorkflowTemplate from './workflow_svd.json';
 import { ComfySettings, VideoSettings } from '../types';
 
@@ -234,6 +235,28 @@ const modifyWorkflow = (baseWorkflow: any, visualPrompt: string, originalPrompt:
     newWorkflow["5"].inputs.height = settings.height || 1024;
   }
 
+  // Update Image Scale Dimensions (Node 12 - Img2Img/IPAdapter)
+  if (newWorkflow["12"] && newWorkflow["12"].inputs && settings) {
+      newWorkflow["12"].inputs.width = settings.width || 1024;
+      newWorkflow["12"].inputs.height = settings.height || 1024;
+  }
+
+  // Bypass ImageScale (Node 12) if "Use Original Size" is enabled
+  if (settings && settings.useOriginalDimensions) {
+      console.log("[Workflow] Bypassing ImageScale node (Using original dimensions)");
+      // Node 10 (VAEEncode) usually takes ["12", 0] (Scaled Image)
+      // We change it to take ["11", 0] (Original LoadImage)
+      if (newWorkflow["10"] && newWorkflow["10"].inputs) {
+          newWorkflow["10"].inputs.pixels = ["11", 0];
+      }
+      
+      // Node 20 (IPAdapterAdvanced) usually takes ["12", 0] (Scaled Image)
+      // We change it to take ["11", 0] (Original LoadImage)
+      if (newWorkflow["20"] && newWorkflow["20"].inputs) {
+          newWorkflow["20"].inputs.image = ["11", 0];
+      }
+  }
+
   // Inject LoRA if selected
   if (settings && settings.lora && settings.lora !== "None") {
     // Create a new LoraLoader node (Arbitrary ID 100)
@@ -281,7 +304,7 @@ const modifyWorkflow = (baseWorkflow: any, visualPrompt: string, originalPrompt:
 export const generateComfyImage = async (
   visualPrompt: string,
   originalPrompt: string,
-  onProgress?: (val: number, max: number) => void,
+  onProgress?: (val: number, max: number, stats?: { itS: number, eta: number }) => void,
   onActiveNode?: (nodeId: string | null) => void,
   inputImage?: File,
   settings?: ComfySettings,
@@ -295,6 +318,9 @@ export const generateComfyImage = async (
   };
 
   log(`[System] Initializing Neural Generation Sequence...`);
+  
+
+  
   if (settings) log(`[Settings] Model: ${settings.model}, Steps: ${settings.steps}, Sampler: ${settings.sampler}`);
 
   let workflowTmpl: any = workflowTemplate;
@@ -305,8 +331,15 @@ export const generateComfyImage = async (
     log("[Input] Input image detected, uploading to Neural Core...");
     try {
       uploadedFilename = await uploadImageToComfy(inputImage, host);
-      workflowTmpl = img2imgWorkflowTemplate;
-      log(`[Upload] Image uploaded successfully: ${uploadedFilename}. Switching to Img2Img workflow.`);
+      
+      if (settings?.useIpAdapter) {
+          workflowTmpl = ipadapterWorkflowTemplate;
+          log(`[Upload] Image uploaded: ${uploadedFilename}. Switching to IP-Adapter (Face ID) workflow.`);
+      } else {
+          workflowTmpl = img2imgWorkflowTemplate;
+          log(`[Upload] Image uploaded: ${uploadedFilename}. Switching to Img2Img workflow.`);
+      }
+
     } catch (err) {
       log(`[Error] Failed to upload input image, falling back to Txt2Img: ${err}`);
       console.error("Failed to upload input image, falling back to Txt2Img:", err);
@@ -357,13 +390,40 @@ export const generateComfyImage = async (
       }
     };
 
+    // Timing State
+    let startTime = Date.now();
+    let lastStepTime = Date.now();
+    let pollingInterval: any = null;
+
     socket.onmessage = async (event) => {
       const message = JSON.parse(event.data);
 
       // Progress Update
       if (message.type === 'progress' && message.data.prompt_id === promptId && onProgress) {
-        onProgress(message.data.value, message.data.max);
-        if (message.data.value === 1) log(`[Progress] Started sampling...`);
+        const value = message.data.value;
+        const max = message.data.max;
+        
+        // Calculate Metrics
+        const now = Date.now();
+        const timeDiff = now - lastStepTime; // Time since last step in ms
+        lastStepTime = now;
+        
+        // it/s calculation (instantenous or smoothed could be done, simpler is instantaneous)
+        // Avoid division by zero
+        const itPerSec = timeDiff > 0 ? 1000 / timeDiff : 0;
+        
+        // ETA calculation
+        const remainingSteps = max - value;
+        const etaSeconds = itPerSec > 0 ? Math.ceil(remainingSteps / itPerSec) : 0;
+
+        onProgress(value, max, { itS: itPerSec, eta: etaSeconds });
+        
+        if (value === 1) {
+             startTime = Date.now(); // Reset start time on first real step
+             log(`[Progress] Started sampling...`);
+        } else if (value % 5 === 0 || value === max) { // Log every 5 steps to reduce noise
+             log(`[Progress] Sampling: ${value}/${max} (${itPerSec.toFixed(2)} it/s, ETA: ${etaSeconds}s)`);
+        }
       }
 
       // Active Node Update
@@ -379,6 +439,7 @@ export const generateComfyImage = async (
       if (promptId && message.type === 'executing' && message.data.node === null && message.data.prompt_id === promptId) {
         log(`[Complete] Generation finished. Post-processing...`);
         clearInterval(pingInterval);
+        if (pollingInterval) clearInterval(pollingInterval);
         console.log("ComfyUI Execution Finished for ID:", promptId);
         socket.close();
 
@@ -398,15 +459,40 @@ export const generateComfyImage = async (
       }
     };
 
+    // Polling Fallback to handle WebSocket failures
+    pollingInterval = setInterval(async () => {
+        if (!promptId) return;
+        try {
+            const history = await getHistory(promptId, host);
+            if (history[promptId] && history[promptId].outputs) {
+                log(`[Fallback] Detected completion via polling.`);
+                clearInterval(pingInterval);
+                clearInterval(pollingInterval); // Clear self
+                socket.close();
+                
+                const imageUrl = extractImageUrl(history, promptId, host);
+                log(`[Success] Image generated (Polling): ${imageUrl}`);
+                resolve(imageUrl);
+            }
+        } catch (e) {
+            // Ignore polling errors (history might not be ready)
+        }
+    }, 2000);
+
     socket.onerror = (err) => {
       log(`[Socket Error] WebSocket error occurred.`);
       console.error("WebSocket error:", err);
-      clearInterval(pingInterval);
+      // Do not reject immediately, let polling try to recover or user cancel
     };
 
     socket.onclose = () => {
       log(`[Connection] WebSocket closed.`);
       clearInterval(pingInterval);
+      // Do not clear pollingInterval here, as we might want to keep checking if it finished just as socket closed
+      // But usually if socket closes unexpectedly, we might want to stop. 
+      // However, for robustness, let's keep polling for a bit or rely on the user to cancel if it's truly dead.
+      // Actually, safest to clean up if we rely on WS for liveness. 
+      // But here we want to survive a WS drop if the job finishes.
     };
   });
 };

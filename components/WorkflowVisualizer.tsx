@@ -4,7 +4,7 @@ import { Database, Image as ImageIcon, Zap, Cpu, Layers, Box, ArrowRight, Downlo
 
 interface WorkflowVisualizerProps {
    settings: ComfySettings;
-   workflowType: 'Text-to-Image' | 'Image-to-Image';
+   workflowType: 'Text-to-Image' | 'Image-to-Image' | 'IP-Adapter';
    activeNodeId?: string | null;
    inputImageUrl?: string | null;
    outputImageUrl?: string | null;
@@ -142,7 +142,7 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
              
                 {/* Step 1: Input Latent or Image */}
                 <div className="flex flex-col gap-4 flex-shrink-0">
-                   {workflowType === 'Image-to-Image' ? (
+                   {workflowType === 'Image-to-Image' || workflowType === 'IP-Adapter' ? (
                       <div className={getNodeStyle("11")}>
                          <ImageIcon className="w-6 h-6 text-pink-400" />
                          <span className="text-[10px] font-mono uppercase font-bold">Load Image</span>
@@ -172,6 +172,37 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
                 </div>
     
                 <Connection />
+
+                {/* Step 1.5: IP-Adapter Module */}
+                {workflowType === 'IP-Adapter' && (
+                    <>
+                    <div className="flex flex-col gap-4 items-center flex-shrink-0 bg-cyan-900/10 p-3 rounded-xl border border-cyan-500/20">
+                         {/* IPAdapter Model */}
+                         <div className={getNodeStyle("21")}>
+                             <Box className="w-5 h-5 text-yellow-400" />
+                             <span className="text-[9px] font-mono uppercase font-bold">IP-Model</span>
+                             <span className="text-[7px] text-slate-500">SDXL ViT-H</span>
+                         </div>
+                         
+                         {/* CLIP Vision */}
+                         <div className={getNodeStyle("22")}>
+                             <Zap className="w-5 h-5 text-cyan-400" />
+                             <span className="text-[9px] font-mono uppercase font-bold">CLIP Vision</span>
+                             <span className="text-[7px] text-slate-500">ViT-H-14</span>
+                         </div>
+                         
+                         <Connection vertical />
+
+                         {/* IPAdapter Advanced Node */}
+                         <div className={getNodeStyle("20")}>
+                             <Cpu className="w-6 h-6 text-cyan-300" />
+                             <span className="text-[10px] font-mono uppercase font-bold">IP-Adapter</span>
+                             <span className="text-[8px] text-slate-500">Weight: 0.8</span>
+                         </div>
+                    </div>
+                    <Connection />
+                    </>
+                )}
     
                 {/* Step 2: Model & Prompts */}
                 <div className="flex flex-col gap-4 items-center flex-shrink-0">

@@ -34,48 +34,50 @@ router.get('/availability', async (req, res) => {
     }
 });
 
-// Analyze Dream
+// Analyze Dream (Dual Agent Pipeline)
 router.post('/analyze', async (req, res) => {
     try {
         const { dreamText, attachments } = req.body; // attachments: { mimeType, base64 }[]
         const ai = getClient();
+        const modelName = 'gemini-2.0-flash-exp';
 
-        const systemPrompt = `
-    You are an expert dream interpreter and avant-garde visual artist. 
-    Analyze the following dream memory and any attached context (images of characters, places, documents).
-    
-    Provide:
-    1. A cryptic but evocative title.
-    2. A short, mysterious summary.
-    3. A psychological/symbolic interpretation (Jungian/Freudian mix).
-    4. A list of key symbols.
-    5. A highly descriptive, cinematic, and surreal visual prompt suitable for a high-end video generation AI (like Veo). Focus on lighting, atmosphere, texture, and surrealism.
-    
-    If images/documents are provided, use them to infer the visual style or specific details of characters/locations in the interpretation and visual prompt.
-    
-    Dream Memory: "${dreamText}"
-  `;
-
-        const parts = [{ text: systemPrompt }];
-
+        // --- PREPARE ATTACHMENTS FOR VISION ---
+        const imageParts = [];
         if (attachments && Array.isArray(attachments)) {
             attachments.forEach(att => {
                 if (att.base64 && att.mimeType) {
-                    // Extract base64 data if it has prefix
                     const base64Data = att.base64.replace(/^data:.*\/.*;base64,/, '');
-                    parts.push({
-                        inlineData: {
-                            mimeType: att.mimeType,
-                            data: base64Data
-                        }
+                    imageParts.push({
+                        inlineData: { mimeType: att.mimeType, data: base64Data }
                     });
                 }
             });
         }
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.0-flash-exp',
-            contents: { parts },
+        console.log(`[Gemini Dual-Agent] Starting Analysis for: "${dreamText.substring(0, 30)}..."`);
+
+        // --- AGENT 1: THE PSYCHOLOGIST ---
+        const psychologistSystemPrompt = `
+            You are Dr. Jung, an expert analytical psychologist.
+            Analyze the following dream memory for hidden emotions, suppressed desires, and archetypal symbolism.
+            
+            Return JSON:
+            {
+                "title": "A short, poetic title",
+                "summary": "Concise summary",
+                "interpretation": "Deep psychological analysis",
+                "symbolism": ["symbol1", "symbol2"],
+                "mood": "Emotional atmosphere"
+            }
+            
+            Dream: "${dreamText}"
+        `;
+
+        const psychParts = [{ text: psychologistSystemPrompt }, ...imageParts];
+
+        const psychResponse = await ai.models.generateContent({
+            model: modelName,
+            contents: { parts: psychParts },
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -84,21 +86,72 @@ router.post('/analyze', async (req, res) => {
                         title: { type: SchemaType.STRING },
                         summary: { type: SchemaType.STRING },
                         interpretation: { type: SchemaType.STRING },
-                        symbolism: {
-                            type: SchemaType.ARRAY,
-                            items: { type: SchemaType.STRING }
-                        },
-                        visualPrompt: { type: SchemaType.STRING, description: "A detailed visual description for video generation software." }
+                        symbolism: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                        mood: { type: SchemaType.STRING }
                     },
-                    required: ["title", "summary", "interpretation", "symbolism", "visualPrompt"]
+                    required: ["title", "summary", "interpretation", "symbolism", "mood"]
                 }
             }
         });
 
-        const text = response.text();
-        if (!text) throw new Error("No analysis generated");
+        const psychText = psychResponse.text();
+        if (!psychText) throw new Error("Agent 1 (Psychologist) failed to generate output.");
+        const psychResult = JSON.parse(psychText);
+        console.log("[Gemini] Agent 1 Complete:", psychResult.title);
 
-        res.json(JSON.parse(text));
+
+        // --- AGENT 2: THE VISUALIZER ---
+        const visualizerSystemPrompt = `
+            You are an expert AI Art Director.
+            Translate this dream's psychological mood into a precise Stable Diffusion XL (SDXL) prompt.
+            
+            Context:
+            - Dream: "${dreamText}"
+            - Mood: "${psychResult.mood}"
+            - Symbols: ${psychResult.symbolism.join(", ")}
+            - Interpretation: "${psychResult.interpretation}"
+
+            Instructions:
+            1. Visually represent the *feeling* described.
+            2. Use professional art keywords (8k, octane render, cinematic lighting).
+            3. Do NOT include text/interface elements.
+            
+            Return JSON:
+            {
+                "visualPrompt": "Your detailed SDXL prompt string"
+            }
+        `;
+
+        // Pass images again for visual context
+        const vizParts = [{ text: visualizerSystemPrompt }, ...imageParts];
+
+        const vizResponse = await ai.models.generateContent({
+            model: modelName,
+            contents: { parts: vizParts },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        visualPrompt: { type: SchemaType.STRING }
+                    },
+                    required: ["visualPrompt"]
+                }
+            }
+        });
+
+        const vizText = vizResponse.text();
+        if (!vizText) throw new Error("Agent 2 (Visualizer) failed to generate output.");
+        const vizResult = JSON.parse(vizText);
+        console.log("[Gemini] Agent 2 Complete.");
+
+        // --- MERGE ---
+        const finalResult = {
+            ...psychResult,
+            visualPrompt: vizResult.visualPrompt
+        };
+
+        res.json(finalResult);
 
     } catch (error) {
         console.error("Analysis Failed:", error);

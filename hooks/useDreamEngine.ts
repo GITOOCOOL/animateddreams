@@ -17,8 +17,16 @@ const generateUUID = () => {
     );
 };
 
-export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mockAnalysis: false, mockGeneration: false }) => {
+export const useDreamEngine = (
+    addLog: (msg: string) => void, 
+    addOllamaLog: (msg: string) => void, 
+    addComfyLog: (msg: string) => void, 
+    devSettings = { mockAnalysis: false, mockGeneration: false }
+) => {
     const { connections } = useConnections();
+    const comfyHost = connections.runpodServerId 
+        ? `https://${connections.runpodServerId}-8188.proxy.runpod.net` 
+        : connections.comfyHost;
     const [dreamState, setDreamState] = useState<DreamState>({
         isLoading: false,
         progress: 0,
@@ -45,8 +53,9 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
     const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
     const [isComfyConnected, setIsComfyConnected] = useState(false);
     const [isRemote, setIsRemote] = useState(false);
-    const [availableModels, setAvailableModels] = useState<string[]>([]);
+    const [availableModels, setAvailableModels] = useState<string[]>([]); // Comfy Models
     const [availableLoras, setAvailableLoras] = useState<string[]>([]);
+    const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]); // New: Ollama Models
     
     // Analysis Settings
     const [analysisModel, setAnalysisModel] = useState<'gemini' | 'ollama' | 'raw' | null>(null);
@@ -74,6 +83,23 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         motionBucketId: 127
     });
 
+    // Dual Agent Settings
+    const [dualAgentSettings, setDualAgentSettings] = useState<import('../types').DualAgentSettings>({
+        useDualAgent: true,
+        psychologist: {
+            provider: 'ollama',
+            model: 'llama3:latest',
+            temperature: 0.7,
+            systemPrompt: "You are Dr. Jung, an expert analytical psychologist. Analyze the dream for hidden emotions and archetypal symbolism."
+        },
+        visualizer: {
+            provider: 'ollama',
+            model: 'llama3:latest',
+            temperature: 0.7,
+            systemPrompt: "You are an expert AI Art Director. Translate the dream's mood into a precise Stable Diffusion XL (SDXL) prompt."
+        }
+    });
+
 
     // Engine Versions
     const [engineVersions, setEngineVersions] = useState({
@@ -94,14 +120,14 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
 
         const checkAllConnections = async () => {
             // Check ComfyUI (Ping Only)
-            const comfyOnline = await checkComfyConnection(connections.comfyHost);
+            const comfyOnline = await checkComfyConnection(comfyHost);
             
             // State Transition: Offline -> Online (or Initial Check)
             if (comfyOnline && !isComfyConnected) {
                 setIsComfyConnected(true);
                 
                 // Fetch Heavy Data (Models, LoRAs, Stats) ONLY on Connect
-                import('../services/comfyService').then(m => m.getSystemStats(connections.comfyHost).then(stats => {
+                import('../services/comfyService').then(m => m.getSystemStats(comfyHost).then(stats => {
                     let version = "Connected";
                     if (stats && stats.system && stats.system.os) {
                          version = "v0.3.14+"; 
@@ -111,7 +137,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                     }
                 }));
 
-                getAvailableModels(connections.comfyHost).then(models => {
+                getAvailableModels(comfyHost).then(models => {
                     setAvailableModels(models);
                     if (models.length > 0) {
                         addLog(`Neural Core Online (${models.length} Models Available)`);
@@ -119,7 +145,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                         addLog("Neural Core Online (No Models Found)");
                     }
                 });
-                getAvailableLoras(connections.comfyHost).then(loras => setAvailableLoras(loras));
+                getAvailableLoras(comfyHost).then(loras => setAvailableLoras(loras));
 
             } else if (!comfyOnline && isComfyConnected) {
                 // State Transition: Online -> Offline
@@ -146,6 +172,12 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
     
                     const textModel = import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest';
                     addLog(`Ollama Detected (v${version}) - Model: ${textModel}`);
+
+                    // Fetch Models List
+                    ollamaSvc.getOllamaModels(connections.ollamaHost).then(models => {
+                         setAvailableOllamaModels(models);
+                         // Optional: addLog(`Ollama Models: ${models.join(', ')}`);
+                    });
     
                 } else if(!ollamaOnline && modelAvailability.ollama) {
                     // State Transition: Online -> Offline
@@ -167,7 +199,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         }
 
         return () => clearInterval(intervalId);
-    }, [addLog, connections.comfyHost, connections.ollamaHost, isComfyConnected, modelAvailability.ollama, availableModels.length, analysisModel]);
+    }, [addLog, comfyHost, connections.ollamaHost, isComfyConnected, modelAvailability.ollama, availableModels.length, analysisModel]);
 
     const processDream = async (dreamInput: string, attachments: DreamAttachment[] = []) => {
         if (!analysisModel) {
@@ -180,7 +212,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
             ...prev,
             isLoading: true,
             isAnalyzing: true, // Show analysis progress bar
-            analysisProgress: 10,
+            analysisProgress: 0, // Reset to 0 first
             progress: 0, // Ensure generation bar is reset
             progressStatus: analysisModel === 'raw' ? 'Skipping Analysis...' : `Analyzing Pattern (${analysisModel})...`,
             error: null,
@@ -227,7 +259,13 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                 addLog("[MOCK] Analysis generated successfully");
             } else if (analysisModel === 'ollama') {
                 addLog(`[Ollama] Sending request to ${dreamState.attachments?.length ? 'Vision' : 'Text'} model...`);
-                analysis = await analyzeDreamTextOllama(dreamInput, attachments, connections.ollamaHost);
+                analysis = await analyzeDreamTextOllama(
+                    dreamInput, 
+                    attachments, 
+                    connections.ollamaHost, 
+                    dualAgentSettings,
+                    addOllamaLog
+                );
                 addLog(`[Ollama] Analysis received. Title: ${analysis.title}`);
             } else {
                 addLog(`[Gemini] Sending request to cloud...`);
@@ -274,8 +312,8 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         setDreamState(prev => ({
             ...prev,
             isGeneratingImage: true,
-            progress: 0,
-            analysisProgress: 0, // Hide analysis bar
+            progress: 0, // Reset generation progress
+            analysisProgress: 0, // Hide/Reset analysis bar
             progressStatus: 'Initializing Core...',
             generatedImageUrl: undefined
         }));
@@ -296,18 +334,24 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                 imageUrl = await generateComfyImage(
                     analysisToUse.visualPrompt,
                     originalPrompt,
-                    (val, max) => {
+                    (val, max, stats) => {
+                        let status = val >= max ? 'Decoding High-Res Image...' : `Sampling ${val}/${max}`;
+                        if (stats && val > 1) {
+                            status += ` · ${stats.itS.toFixed(2)}it/s`;
+                            if (stats.eta > 0) status += ` · ${stats.eta}s left`;
+                        }
+                        
                         setDreamState(prev => ({
                             ...prev,
                             progress: Math.round((val / max) * 100),
-                            progressStatus: `Sampling ${val}/${max}`
+                            progressStatus: status
                         }));
                     },
                     (nodeId) => setActiveNodeId(nodeId),
                     inputImage || dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.file,
                     comfySettings,
-                    addLog,
-                    connections.comfyHost
+                    addComfyLog, // <--- CORRECT LOGGER
+                    comfyHost
                 );
             }
 
@@ -380,7 +424,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
                         }));
                      },
                      addLog,
-                     connections.comfyHost
+                     comfyHost
                  );
             }
 
@@ -454,6 +498,7 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         setComfySettings,
         availableModels,
         availableLoras,
+        availableOllamaModels,
         processDream,
         generateImage,
         generateVideo,
@@ -467,6 +512,8 @@ export const useDreamEngine = (addLog: (msg: string) => void, devSettings = { mo
         engineVersions,
         videoSettings,
         setVideoSettings,
-        triggerGeminiCheck
+        triggerGeminiCheck,
+        dualAgentSettings,
+        setDualAgentSettings
     };
 };

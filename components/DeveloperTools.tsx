@@ -3,7 +3,11 @@ import { Wrench, Terminal, Play, SkipForward, AlertCircle, CheckCircle, X } from
 import LogConsole from './LogConsole';
 
 interface DeveloperToolsProps {
-    logs: string[];
+    logs: {
+        system: string[];
+        ollama: string[];
+        comfy: string[];
+    };
     isOpen: boolean;
     onToggle: () => void;
     devSettings: {
@@ -20,12 +24,21 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
     devSettings,
     onUpdateSettings
 }) => {
-    const [activeTab, setActiveTab] = useState<'controls' | 'logs'>('controls');
+    const [activeTab, setActiveTab] = useState<'controls' | 'system' | 'ollama' | 'comfy'>('controls');
+
+    // Logs Mapping
+    const getLogsForTab = () => {
+        switch(activeTab) {
+            case 'ollama': return logs.ollama;
+            case 'comfy': return logs.comfy;
+            default: return logs.system;
+        }
+    }
 
     if (!isOpen) return null;
 
     return (
-        <div className="absolute top-full right-0 mt-4 z-50 w-96 bg-[#0F0F11] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[600px] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+        <div className="absolute top-full right-0 mt-4 z-50 w-[500px] bg-[#0F0F11] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[600px] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
             {/* Notch */}
             <div className="absolute -top-2 right-3 w-4 h-4 bg-[#0F0F11] border-l border-t border-white/10 transform rotate-45"></div>
 
@@ -39,18 +52,31 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                     <div className="flex bg-slate-800 rounded p-0.5">
                         <button
                             onClick={() => setActiveTab('controls')}
-                            className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${activeTab === 'controls' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'controls' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
                         >
                             Controls
                         </button>
+                        <div className="w-px bg-slate-700 mx-1 my-1"></div>
                         <button
-                            onClick={() => setActiveTab('logs')}
-                            className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${activeTab === 'logs' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                            onClick={() => setActiveTab('system')}
+                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'system' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
                         >
-                            Logs
+                            System
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('ollama')}
+                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'ollama' ? 'bg-orange-900/50 text-orange-200' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            Ollama
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('comfy')}
+                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'comfy' ? 'bg-purple-900/50 text-purple-200' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            Comfy
                         </button>
                     </div>
-                    <button onClick={onToggle} className="text-slate-500 hover:text-white">
+                    <button onClick={onToggle} className="text-slate-500 hover:text-white ml-2">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -101,8 +127,8 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="h-64 flex flex-col">
-                        <LogConsole logs={logs} isOpen={true} onClose={() => { }} embedded={true} />
+                    <div className="h-96 flex flex-col">
+                        <LogConsole logs={getLogsForTab()} isOpen={true} onClose={() => { }} embedded={true} />
                     </div>
                 )}
             </div>

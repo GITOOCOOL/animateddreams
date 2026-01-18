@@ -18,7 +18,7 @@ import DeveloperTools from './components/DeveloperTools';
 import SettingsDialog from './components/SettingsDialog';
 
 import SystemSettingsPanel from './components/SystemSettingsPanel';
-import AnalysisSettingsPanel, { AnalysisSettings } from './components/AnalysisSettingsPanel';
+import AgentSettingsPanel from './components/AgentSettingsPanel'; // New Dual Agent Panel
 import ModelSelector from './components/ModelSelector';
 
 
@@ -36,7 +36,9 @@ function AppContent() {
   const { connections, updateConnection } = useConnections();
   const localTranscriber = useTranscriber();
   const [showLogin, setShowLogin] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<string[]>([]); // System Logs
+  const [ollamaLogs, setOllamaLogs] = useState<string[]>([]);
+  const [comfyLogs, setComfyLogs] = useState<string[]>([]);
   const [dreamInput, setDreamInput] = useState('');
 
   // UI State
@@ -52,7 +54,7 @@ function AppContent() {
   const [showVisualizationModal, setShowVisualizationModal] = useState(false);
 
   // Attachments
-  const [attachments, setAttachments] = useState<{ file: File; startUrl: string; mimeType: string }[]>([]);
+  const [attachments, setAttachments] = useState<import('./types').DreamAttachment[]>([]);
   const startInputRef = React.useRef<HTMLInputElement>(null);
 
   // Iterative Mode API
@@ -69,20 +71,26 @@ function AppContent() {
   });
 
   // Analysis Settings State
-  const [analysisSettings, setAnalysisSettings] = useState<AnalysisSettings>({
-      temperature: 0.7,
-      systemPrompt: "",
-      modelOverride: ""
-  });
 
-  // Logging Helper
+
+  // Logging Helpers
   const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+    setLogs(prev => [...prev.slice(-49), `[${timestamp}] ${message}`]); // Keep last 50
+  }, []);
+
+  const addOllamaLog = useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setOllamaLogs(prev => [...prev.slice(-49), `[${timestamp}] ${message}`]);
+  }, []);
+
+  const addComfyLog = useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setComfyLogs(prev => [...prev.slice(-49), `[${timestamp}] ${message}`]);
   }, []);
 
   // Hook Access
-  const engine = useDreamEngine(addLog, devSettings);
+  const engine = useDreamEngine(addLog, addOllamaLog, addComfyLog, devSettings);
   const { dreamState, setDreamState, generateImage, availableModels, availableLoras } = engine;
 
   // Workflow Auto-Scroll Refs
@@ -203,15 +211,39 @@ function AppContent() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        setAttachments([{
-          file,
-          startUrl: URL.createObjectURL(file), // For preview
-          mimeType: file.type
-        }]);
-        addLog(`[System] Image attached: ${file.name}`);
+        const result = event.target?.result as string;
+        // Strip data:image/xyz;base64, prefix for Ollama
+        const base64 = result.split(',')[1];
+        
+        // Create an image object to get dimensions
+        const img = new Image();
+        img.onload = () => {
+          setAttachments([{
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            file,
+            previewUrl: URL.createObjectURL(file), // Note: This creates a new blob URL, maybe reuse result if efficient? But existing used createObjectURL.
+            base64: base64,
+            mimeType: file.type,
+            width: img.naturalWidth,
+            height: img.naturalHeight
+          }]);
+          addLog(`[System] Image attached: ${file.name} (${img.naturalWidth}x${img.naturalHeight})`);
+        };
+        img.src = result;
       };
       reader.readAsDataURL(file);
+
+      // Check for Vision Model Compatibility
+      const currentModel = engine.dualAgentSettings.psychologist.model.toLowerCase();
+      const isVisionModel = currentModel.includes('llava') || currentModel.includes('vision') || currentModel.includes('mmproj');
+      
+      if (!isVisionModel && engine.analysisModel === 'ollama') {
+          addLog("⚠️ TIP: You attached an image, but your model ('" + currentModel + "') might not support vision.");
+          addLog("👉 Please select 'llava' or another vision model in Dream Agent Settings.");
+          
+          // Optional: Auto-open settings to help them
+          // setIsAnalysisSettingsOpen(true); 
+      }
     }
   };
 
@@ -288,14 +320,19 @@ function AppContent() {
           <SystemSettingsPanel />
       </SettingsDialog>
 
-       {/* 2. Analysis Settings (LLM) */}
-      <SettingsDialog 
-        isOpen={isAnalysisSettingsOpen} 
-        onClose={() => setIsAnalysisSettingsOpen(false)}
-        title="Analysis Configuration"
-      >
-          <AnalysisSettingsPanel settings={analysisSettings} onSettingsChange={setAnalysisSettings} />
-      </SettingsDialog>
+        {/* 2. Analysis Settings (LLM) */}
+       <SettingsDialog 
+         isOpen={isAnalysisSettingsOpen} 
+         onClose={() => setIsAnalysisSettingsOpen(false)}
+         title="Dream Agent Configuration"
+       >
+           {/* Replaced old AnalysisSettingsPanel with new Dual Agent Panel */}
+           <AgentSettingsPanel 
+                settings={engine.dualAgentSettings} 
+                onSettingsChange={engine.setDualAgentSettings}
+                availableModels={engine.availableOllamaModels}
+           />
+       </SettingsDialog>
 
       {/* 3. Dictation Settings */}
       <SettingsDialog 
@@ -317,6 +354,7 @@ function AppContent() {
             onSettingsChange={engine.setComfySettings}
             availableModels={availableModels}
             availableLoras={availableLoras}
+            inputImage={attachments.find(a => a.mimeType.startsWith('image/'))}
             onDone={() => setIsGenerationSettingsOpen(false)}
           />
       </SettingsDialog>
@@ -340,7 +378,11 @@ function AppContent() {
         onReset={handleReset}
         onOpenGallery={() => setIsGalleryOpen(true)}
         showDevTools={showDevTools}
-        logs={logs}
+        logs={{
+            system: logs,
+            ollama: ollamaLogs,
+            comfy: comfyLogs
+        }}
         devSettings={devSettings}
         onUpdateSettings={setDevSettings}
         onOpenSettings={() => setIsSystemSettingsOpen(true)} 
@@ -512,7 +554,13 @@ function AppContent() {
                                          <div className="w-full flex-1 bg-black/50 rounded-lg overflow-hidden border border-white/5 relative group min-h-[300px]">
                                            <WorkflowVisualizer
                                              settings={engine.comfySettings}
-                                             workflowType={dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) ? 'Image-to-Image' : 'Text-to-Image'}
+                                             workflowType={
+                                                 engine.comfySettings.useIpAdapter && dreamState.attachments?.some(a => a.mimeType.startsWith('image/'))
+                                                    ? 'IP-Adapter'
+                                                    : dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) 
+                                                        ? 'Image-to-Image' 
+                                                        : 'Text-to-Image'
+                                             }
                                              activeNodeId={engine.activeNodeId}
                                              inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
                                              outputImageUrl={dreamState.generatedImageUrl}

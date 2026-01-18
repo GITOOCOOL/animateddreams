@@ -1,7 +1,8 @@
 import React from 'react'; 
-import { Sparkles, Terminal, LogOut, RefreshCw, Wrench, Settings, Image } from 'lucide-react';
+import { Sparkles, Terminal, LogOut, RefreshCw, Wrench, Settings, Image, Box } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import DeveloperTools from '../DeveloperTools';
+import { useConnections } from '../../contexts/ConnectionContext';
 
 interface HeaderProps {
     isComfyConnected: boolean;
@@ -24,6 +25,8 @@ const Header: React.FC<HeaderProps> = ({
     onReset, onOpenGallery, showDevTools, logs, devSettings, onUpdateSettings, onOpenSettings
 }) => {
     const { user, logout } = useAuth();
+    const { connections } = useConnections();
+    const isRunPod = !!connections.runpodServerId;
 
     return (
         <header className="flex flex-col md:flex-row items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20 backdrop-blur-sm sticky top-0 z-40">
@@ -37,7 +40,20 @@ const Header: React.FC<HeaderProps> = ({
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-white mb-1">Animated<span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Dreams</span></h1>
                     <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest text-slate-500 font-mono">
-                        {isRemote && <span className="text-yellow-500 border border-yellow-500/20 px-1 rounded bg-yellow-500/5">REMOTE</span>}
+                         {isRunPod ? (
+                            <span className="flex items-center gap-1 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded bg-cyan-500/5">
+                                <Box className="w-3 h-3" /> RUNPOD
+                            </span>
+                        ) : isComfyConnected ? (
+                            <span className="flex items-center gap-1 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded bg-purple-500/5">
+                                <Wrench className="w-3 h-3" /> LOCAL
+                            </span>
+                        ) : (
+                             <span className="flex items-center gap-1 text-red-500 border border-red-500/20 px-1.5 py-0.5 rounded bg-red-500/5">
+                                <LogOut className="w-3 h-3" /> OFFLINE
+                            </span>
+                        )}
+                        {isRemote && !isRunPod && <span className="text-yellow-500 border border-yellow-500/20 px-1 rounded bg-yellow-500/5">REMOTE UI</span>}
                     </div>
                 </div>
             </div>
