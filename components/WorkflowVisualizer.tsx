@@ -1,17 +1,94 @@
 import React from 'react';
 import { ComfySettings } from '../types';
-import { Database, Image as ImageIcon, Zap, Cpu, Layers, Box, ArrowRight, Download, Activity } from 'lucide-react';
+import { Database, Image as ImageIcon, Zap, Cpu, Layers, Box, ArrowRight, Download, Activity, Video } from 'lucide-react';
 
 interface WorkflowVisualizerProps {
    settings: ComfySettings;
-   workflowType: 'Text-to-Image' | 'Image-to-Image' | 'IP-Adapter';
+   workflowType: 'Text-to-Image' | 'Image-to-Image' | 'IP-Adapter' | 'Video-SVD' | 'Video-AnimateDiff';
    activeNodeId?: string | null;
    inputImageUrl?: string | null;
    outputImageUrl?: string | null;
+   dynamicWorkflow?: any;
 }
 
-const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workflowType, activeNodeId, inputImageUrl, outputImageUrl }) => {
+const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workflowType, activeNodeId, inputImageUrl, outputImageUrl, dynamicWorkflow }) => {
 
+   const containerRef = React.useRef<HTMLDivElement>(null);
+   const contentRef = React.useRef<HTMLDivElement>(null);
+   const [scale, setScale] = React.useState(1);
+   const [position, setPosition] = React.useState({ x: 0, y: 0 });
+
+   const fitToScreen = React.useCallback(() => {
+       if (containerRef.current && contentRef.current) {
+           const container = containerRef.current.getBoundingClientRect();
+           const contentWidth = contentRef.current.offsetWidth;
+           const contentHeight = contentRef.current.offsetHeight;
+           
+           if (container.width < 50 || container.height < 50) return;
+           if (contentWidth === 0 || contentHeight === 0) return;
+
+           const padding = 40;
+           const allowedWidth = container.width - padding;
+           const allowedHeight = container.height - padding;
+           
+           const ratioX = allowedWidth / contentWidth;
+           const ratioY = allowedHeight / contentHeight;
+           const newScale = Math.min(ratioX, ratioY, 1.2);
+           
+           setScale(newScale);
+           setPosition({ x: 0, y: 0 });
+       }
+   }, []);
+
+   React.useEffect(() => {
+       const timer = setTimeout(fitToScreen, 10);
+       const observer = new ResizeObserver(() => requestAnimationFrame(fitToScreen));
+       
+       if (containerRef.current) observer.observe(containerRef.current);
+       if (contentRef.current) observer.observe(contentRef.current);
+       
+       return () => {
+           observer.disconnect();
+           clearTimeout(timer);
+       };
+   }, [fitToScreen, settings, workflowType, inputImageUrl, outputImageUrl, dynamicWorkflow]);
+
+   const handleZoomIn = () => setScale(s => Math.min(s + 0.1, 2));
+   const handleZoomOut = () => setScale(s => Math.max(s - 0.1, 0.1));
+   const handleReset = fitToScreen;
+
+   const [isDragging, setIsDragging] = React.useState(false);
+   const dragStart = React.useRef({ x: 0, y: 0 });
+
+   const onPointerDown = (e: React.PointerEvent) => {
+       setIsDragging(true);
+       dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+   };
+   const onPointerMove = (e: React.PointerEvent) => {
+       if (isDragging) {
+           setPosition({
+               x: e.clientX - dragStart.current.x,
+               y: e.clientY - dragStart.current.y
+           });
+       }
+   };
+   const onPointerUp = () => setIsDragging(false);
+
+   // Helper for Dynamic Node Info
+   const getNodeInfo = (classType: string) => {
+       if (classType.includes('KSampler')) return { icon: Activity, label: 'KSampler', color: 'text-purple-400', border: 'border-purple-500' };
+       if (classType.includes('Loader') && classType.includes('Check')) return { icon: Database, label: 'Model', color: 'text-cyan-400', border: 'border-cyan-500' };
+       if (classType.includes('LoadImage')) return { icon: ImageIcon, label: 'Input', color: 'text-pink-400', border: 'border-pink-500' };
+       if (classType.includes('Save')) return { icon: Download, label: 'Save', color: 'text-green-500', border: 'border-green-500' };
+       if (classType.includes('SVD') || classType.includes('Video')) return { icon: Video, label: 'Video Gen', color: 'text-orange-400', border: 'border-orange-500' };
+       if (classType.includes('Animate')) return { icon: Video, label: 'AnimateDiff', color: 'text-blue-400', border: 'border-blue-500' };
+       if (classType.includes('IPAdapter')) return { icon: Cpu, label: 'IP-Adapter', color: 'text-yellow-400', border: 'border-yellow-500' };
+       if (classType.includes('CLIP')) return { icon: Zap, label: 'CLIP', color: 'text-indigo-400', border: 'border-indigo-500' };
+       if (classType.includes('VAE')) return { icon: Cpu, label: 'VAE', color: 'text-red-400', border: 'border-red-500' };
+       return { icon: Box, label: classType.replace(/_/g, ' '), color: 'text-slate-400', border: 'border-slate-600' };
+   };
+
+   // Helper functions for Static Rendering
    const isActive = (ids: string | string[]) => {
       if (!activeNodeId) return false;
       if (Array.isArray(ids)) return ids.includes(activeNodeId);
@@ -50,80 +127,57 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
       </div>
    );
 
-
-   const containerRef = React.useRef<HTMLDivElement>(null);
-   const contentRef = React.useRef<HTMLDivElement>(null);
-   const [scale, setScale] = React.useState(1);
-   const [position, setPosition] = React.useState({ x: 0, y: 0 });
-
-   const fitToScreen = React.useCallback(() => {
-       if (containerRef.current && contentRef.current) {
-           const container = containerRef.current.getBoundingClientRect();
-           
-           // Use offsetWidth/Height to get the "natural" unscaled layout size relative to the parent
-           const contentWidth = contentRef.current.offsetWidth;
-           const contentHeight = contentRef.current.offsetHeight;
-           
-           // If container is hidden/collapsed, abort
-           if (container.width < 50 || container.height < 50) return;
-           if (contentWidth === 0 || contentHeight === 0) return;
-
-           const padding = 40;
-           const allowedWidth = container.width - padding;
-           const allowedHeight = container.height - padding;
-           
-           // Calculate exact ratio needed to fit natural size into allowed container size
-           const ratioX = allowedWidth / contentWidth;
-           const ratioY = allowedHeight / contentHeight;
-           
-           const newScale = Math.min(ratioX, ratioY, 1.2); // Allow slight zoom in (1.2) if space permits
-           
-           setScale(newScale);
-           setPosition({ x: 0, y: 0 });
-       }
-   }, []);
-
-   // Auto-fit on mount and resize
-   React.useEffect(() => {
-       // Small delay to ensure layout is stable (images/icons loaded)
-       const timer = setTimeout(fitToScreen, 10);
+   // DYNAMIC RENDERER
+   if (dynamicWorkflow) {
+       const nodes = Object.entries(dynamicWorkflow).map(([id, data]: [string, any]) => ({ id, ...data }));
        
-       const observer = new ResizeObserver(() => {
-           // Debounce slightly
-           requestAnimationFrame(fitToScreen);
-       });
-       
-       if (containerRef.current) observer.observe(containerRef.current);
-       if (contentRef.current) observer.observe(contentRef.current); // Observe content too!
-       
-       return () => {
-           observer.disconnect();
-           clearTimeout(timer);
-       };
-   }, [fitToScreen, settings, workflowType, inputImageUrl, outputImageUrl]); // Re-fit if content props change
+       return (
+          <div 
+            ref={containerRef}
+            className="w-full h-full bg-black/40 rounded-xl border border-slate-800/50 backdrop-blur-sm relative overflow-hidden cursor-move"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerLeave={onPointerUp}
+          >
+             <div 
+                className="w-full h-full flex items-center justify-center transition-transform duration-75 ease-out origin-center"
+                style={{ transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)` }}
+             >
+                 <div ref={contentRef} className="flex flex-wrap items-center justify-center gap-8 px-8 py-8 max-w-[1200px]">
+                     {nodes.map((node) => {
+                         const info = getNodeInfo(node.class_type);
+                         const Icon = info.icon;
+                         
+                         return (
+                            <React.Fragment key={node.id}>
+                                <div className={`${getNodeStyle(node.id)} min-w-[120px]`}>
+                                    <Icon className={`w-6 h-6 ${info.color}`} />
+                                    <span className="text-[10px] font-mono uppercase font-bold truncate max-w-[140px]">{info.label}</span>
+                                    <span className="text-[8px] text-slate-500">ID: {node.id}</span>
+                                    {inputImageUrl && node.class_type === 'LoadImage' && (
+                                        <div className="w-10 h-10 mt-1 rounded overflow-hidden border border-white/20">
+                                            <img src={inputImageUrl} className="w-full h-full object-cover" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="text-slate-800"><ArrowRight className="w-4 h-4 opacity-20" /></div>
+                            </React.Fragment>
+                         );
+                     })}
+                 </div>
+             </div>
+             {/* Controls */}
+             <div className="absolute top-4 right-4 flex flex-col gap-2 z-50 pointer-events-auto">
+                 <button onClick={handleZoomIn} className="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg border border-white/10 text-lg transition-colors">+</button>
+                 <button onClick={handleZoomOut} className="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg border border-white/10 text-lg transition-colors">-</button>
+                 <button onClick={handleReset} className="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg border border-white/10 text-xs transition-colors">R</button>
+             </div>
+          </div>
+       );
+   }
 
-   const handleZoomIn = () => setScale(s => Math.min(s + 0.1, 2));
-   const handleZoomOut = () => setScale(s => Math.max(s - 0.1, 0.1));
-   const handleReset = fitToScreen;
-
-   // Basic drag support (optional, simple implementation)
-   const [isDragging, setIsDragging] = React.useState(false);
-   const dragStart = React.useRef({ x: 0, y: 0 });
-
-   const onPointerDown = (e: React.PointerEvent) => {
-       setIsDragging(true);
-       dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-   };
-   const onPointerMove = (e: React.PointerEvent) => {
-       if (isDragging) {
-           setPosition({
-               x: e.clientX - dragStart.current.x,
-               y: e.clientY - dragStart.current.y
-           });
-       }
-   };
-   const onPointerUp = () => setIsDragging(false);
-
+   // STATIC RENDERER (Fallback)
    return (
       <div 
         ref={containerRef}
@@ -138,7 +192,7 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
             style={{ transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)` }}
          >
              {/* Content Wrapper for measuring */}
-             <div ref={contentRef} className="flex items-center justify-center gap-2 px-8 py-8"> {/* Removed min-w-[800px], added padding */}
+             <div ref={contentRef} className="flex items-center justify-center gap-2 px-8 py-8">
              
                 {/* Step 1: Input Latent or Image */}
                 <div className="flex flex-col gap-4 flex-shrink-0">

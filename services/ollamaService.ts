@@ -1,4 +1,4 @@
-import { DreamAnalysis, DreamAttachment } from "../types";
+import { DreamAnalysis } from "../types";
 
 /**
  * Checks if Ollama is reachable and the model is loaded.
@@ -71,6 +71,42 @@ const generateFallbackAnalysis = (text: string): DreamAnalysis => {
 /**
  * Helper to call Ollama with a specific system prompt
  */
+/**
+ * Generic Planner/Executor for a single Pipeline Layer
+ */
+export const runOllamaLayer = async (
+    host: string,
+    config: import('../types').AgentConfig,
+    userPrompt: string,
+    context: any, // Previous layer output
+    images: string[] = [],
+    addLog?: (msg: string) => void,
+    signal?: AbortSignal // Cancellation Support
+): Promise<any> => {
+    
+    // Construct System Prompt (append specific instructions if needed)
+    let systemPrompt = config.systemPrompt || "You are a helpful AI assistant.";
+    
+    const rawResult = await callOllamaAgent(host, config.model, systemPrompt, userPrompt, config.temperature, images, addLog, signal);
+    
+    // Validation / Parsing 
+    // We try to parse JSON if the prompt asks for it, but if it fails we return raw text
+    // The visualizer will handle displaying mixed types
+    
+    // Check if result is string or object
+    if (typeof rawResult === 'string') {
+        // Try parsing one last time just in case callOllamaAgent returned a stringified JSON
+        try {
+             return JSON.parse(rawResult);
+        } catch(e) {
+             return rawResult;
+        }
+    }
+    
+    return rawResult;
+};
+
+// Internal Helper (kept private or exported if needed)
 const callOllamaAgent = async (
     host: string, 
     model: string, 
@@ -78,7 +114,8 @@ const callOllamaAgent = async (
     userPrompt: string, 
     temperature: number, 
     images: string[] = [],
-    addLog?: (msg: string) => void
+    addLog?: (msg: string) => void,
+    signal?: AbortSignal
 ): Promise<any> => {
     
     const log = (msg: string) => {
@@ -97,16 +134,16 @@ const callOllamaAgent = async (
         }
     };
 
-    log(`POST /api/chat [Model: ${model}]`);
-
-    console.log(`[Ollama Raw] Model: ${model}, Payload sent.`);
+    // log(`POST /api/chat [Model: ${model}]`);
+    // console.log(`[Ollama Raw] Model: ${model}, Payload sent.`);
 
     const response = await fetch(`${host}/api/chat`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal // Pass abort signal
     });
 
     if (!response.ok) {
@@ -119,13 +156,8 @@ const callOllamaAgent = async (
     const textResponse = data.message?.content || data.response;
 
     if (!textResponse) {
-        log("Error: No 'message.content' or 'response' field in Ollama output");
-        console.error("Ollama Unexpected Response:", data);
         throw new Error("Ollama returned invalid format");
     }
-
-    log(`Response Received (${textResponse.length} chars)`);
-    // console.log(`[Ollama Raw] Model: ${model}, Response:`, textResponse);
 
     // Robust JSON Cleanup & Parsing
     try {
@@ -143,12 +175,12 @@ const callOllamaAgent = async (
                 try {
                     return JSON.parse(jsonMatch[0]);
                 } catch (e3) {
-                    console.error("Fallback JSON regex extraction failed.");
+                    // console.error("Fallback JSON regex extraction failed.");
                 }
             }
         }
         
-        console.warn("[Ollama] Parsing failed. Returning raw text.");
+        // Return raw text if JSON parsing fails
         return textResponse;
     }
 };
@@ -179,56 +211,6 @@ const validateAnalysis = (result: any): DreamAnalysis => {
     };
 };
 
-export const analyzeDreamTextOllama = async (
-    dreamText: string, 
-    attachments: DreamAttachment[] = [], 
-    host: string, 
-    settings?: import('../types').DualAgentSettings,
-    addLog?: (msg: string) => void
-): Promise<DreamAnalysis> => {
-  const hasImages = attachments.length > 0;
-  const images = attachments.map(att => att.base64);
-
-  // Use Psychologist settings as the "Main" settings for single-pass
-  // Logic: The user likely selected their best "Smart" model for the Psychologist
-  const model = settings?.psychologist.model || (hasImages ? (import.meta.env.VITE_OLLAMA_VISION_MODEL || 'llava:latest') : (import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest'));
-  const temperature = settings?.psychologist.temperature ?? 0.7;
-
-  const log = (msg: string) => {
-      console.log(`[Ollama] ${msg}`);
-      if (addLog) addLog(msg);
-  };
-
-  log(`Starting Single-Pass Analysis with model: ${model}`);
-
-  // Combined System Prompt
-  const systemPrompt = `
-    You are an expert Dream Interpreter and Visual Artist.
-    Your goal is to analyze the user's dream and describe it visually.
-
-    1. ANLYZE the dream for hidden meaning, symbolism, and mood.
-    2. CREATE a "visualPrompt" for Stable Diffusion that captures this scene artistically.
-
-    Return ONLY valid JSON with this exact structure:
-    {
-      "title": "Short poetic title",
-      "summary": "Brief summary of the dream",
-      "interpretation": "Deep psychological meaning",
-      "symbolism": ["symbol1", "symbol2", "symbol3"],
-      "mood": "Emotional atmosphere",
-      "visualPrompt": "Detailed, comma-separated image generation prompt, focusing on visual elements, lighting, and style. NO text."
-    }
-  `;
-
-  log("Sending request...");
-  // Pass logger to inner helper via closure or argument. 
-  // Let's pass it to callOllamaAgent explicitly to get raw logs.
-  const rawResult = await callOllamaAgent(host, model, systemPrompt, dreamText, temperature, images, addLog);
-  
-  const finalResult = validateAnalysis(rawResult);
-  log(`Analysis Complete: ${finalResult.title}`);
-
-  return finalResult;
-};
+// analyzeDreamTextOllama removed - replaced by Pipeline runOllamaLayer
 
 

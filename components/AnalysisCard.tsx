@@ -4,9 +4,11 @@ import { Terminal, Sparkles, AlertTriangle, BrainCircuit, Tag } from 'lucide-rea
 
 interface AnalysisCardProps {
   analysis: DreamAnalysis;
+  editablePrompt?: string;
+  onPromptChange?: (val: string) => void;
 }
 
-const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
+const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis, editablePrompt, onPromptChange }) => {
   return (
     <div className="relative group animate-fade-in">
       {/* Glow Backdrop */}
@@ -66,16 +68,28 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis }) => {
         </div>
 
         {/* Visual Prompt Terminal */}
-        <div className="bg-black border border-slate-800 rounded p-4 font-mono text-xs relative">
-          <div className="absolute top-0 left-0 bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400 uppercase tracking-wider">
-            Prompt_Stream_Output
+        <div className="bg-black border border-slate-800 rounded p-4 font-mono text-xs relative group/terminal">
+          <div className="absolute top-0 left-0 bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <span>Prompt_Stream_Output</span>
+            {onPromptChange && <span className="text-cyan-400 animate-pulse bg-cyan-900/30 px-1 rounded">EDITABLE</span>}
           </div>
+          
           <div className="flex items-start gap-3 mt-2 text-emerald-400/80">
             <span className="mt-1">$</span>
-            <p className="opacity-90 leading-relaxed">
-              {analysis.visualPrompt}
-              <span className="inline-block w-2 h-4 ml-1 bg-emerald-500 animate-pulse align-middle"></span>
-            </p>
+            <div className="flex-1">
+                {onPromptChange ? (
+                    <textarea 
+                        value={editablePrompt ?? analysis.visualPrompt}
+                        onChange={(e) => onPromptChange(e.target.value)}
+                        className="w-full bg-transparent border-none text-emerald-400 focus:ring-0 p-0 resize-y h-24 focus:outline-none leading-relaxed custom-scrollbar"
+                    />
+                ) : (
+                    <p className="opacity-90 leading-relaxed">
+                    {analysis.visualPrompt}
+                    <span className="inline-block w-2 h-4 ml-1 bg-emerald-500 animate-pulse align-middle"></span>
+                    </p>
+                )}
+            </div>
           </div>
         </div>
       </div>

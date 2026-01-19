@@ -27,25 +27,33 @@ export interface ComfySettings {
   denoise: number;
   width: number;
   height: number;
-  lora?: string;
-  loraStrength?: number;
+  loras?: { name: string; strength: number }[];
   seed?: number; // Optional seed override
   useIpAdapter?: boolean; // Face Matching
   ipAdapterModel?: string; // Specific IP Adapter Model File
   useOriginalDimensions?: boolean; // Bypass resizing
+  ipAdapterWeight?: number; // Strength of Face ID
+  ipAdapterPreset?: string; // e.g. "VIT-G" or "STANDARD"
+  customNodes?: { type: string; id: string; inputs: Record<string, any> }[];
 }
 
 export interface AgentConfig {
   model: string;
   temperature: number;
-  systemPrompt?: string; // Optional override
-  provider: 'ollama' | 'gemini';
+  systemPrompt?: string; 
+  provider: 'ollama' | 'gemini' | 'raw'; // Explicitly added 'raw'
 }
 
-export interface DualAgentSettings {
-  useDualAgent: boolean; // Master toggle
-  psychologist: AgentConfig;
-  visualizer: AgentConfig;
+export interface AnalysisLayer {
+  id: string; // Dynamic UUID
+  name: string; // e.g. "Prompt Enhancer"
+  role: string; // e.g. "Enhancer", "Critic" (Descriptive)
+  enabled: boolean;
+  config: AgentConfig; // The engine settings for this layer
+}
+
+export interface AnalysisPipeline {
+  layers: AnalysisLayer[];
 }
 
 export interface VideoSettings {
@@ -53,6 +61,14 @@ export interface VideoSettings {
   fps: number;
   duration: number; // Seconds (e.g., 6)
   motionBucketId: number; // For SVD, usually 127
+  lowVram?: boolean; // Optimization for 8GB cards
+  width?: number;
+  height?: number;
+  baseModel?: string; // Checkpoint for AnimateDiff
+  useIpAdapter?: boolean; // Hybrid Mode
+  ipAdapterWeight?: number; // Strength (0.0 - 1.0)
+  ipAdapterModel?: string; // Model file (Optional, if manual loading used)
+  ipAdapterPreset?: string; // User selected preset (e.g. "VIT-G")
 }
 
 export interface DreamState {
@@ -73,6 +89,9 @@ export interface DreamState {
   progressStatus: string;
   analysisProgress: number; // For Text Analysis
   analysisStatus?: string; // Separate status for Analysis
+  
+  // Pipeline State
+  currentLayerId?: string; // Which layer is currently active
 }
 
 declare global {

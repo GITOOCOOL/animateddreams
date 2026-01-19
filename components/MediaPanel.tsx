@@ -1,7 +1,8 @@
 import React from 'react';
-import { Image as ImageIcon, Video, Loader2, Play, AlertCircle, Cpu, Activity } from 'lucide-react';
+import { Image as ImageIcon, Video, Loader2, Play, AlertCircle, Cpu, Activity, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressBar from './ProgressBar';
+import { ResultView } from './ResultView';
 
 interface MediaPanelProps {
   imageUrl: string | null;
@@ -18,14 +19,17 @@ interface MediaPanelProps {
   onOpenSettings?: () => void;
   isModelSelected: boolean;
   settingsContent?: React.ReactNode;
+  prompt?: string;
   
   // New props for integrated selector
   onShowWorkflow?: () => void;
   availableModels: string[];
   currentModel: string;
+  currentVideoModel?: string;
   onModelSelect: (model: string) => void;
   isComfyConnected: boolean;
   onOpenVideoSettings?: () => void;
+  onCancel?: () => void;
   
   // Visualization
   visualizationContent?: React.ReactNode;
@@ -50,17 +54,25 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
   onShowWorkflow,
   availableModels,
   currentModel,
+  currentVideoModel,
   onModelSelect,
   isComfyConnected,
   onOpenVideoSettings,
+  onCancel,
   visualizationContent,
-  isVisualizing = false
+  isVisualizing = false,
+  availableNodeTypes,
+  prompt
 }) => {
   const [activeView, setActiveView] = React.useState<'image' | 'video'>('image');
+  const [showFullscreen, setShowFullscreen] = React.useState(false);
 
   // Auto-switch to video view if video starts generating
   React.useEffect(() => {
-    if (isGeneratingVideo) setActiveView('video');
+    if (isGeneratingVideo) {
+        setActiveView('video');
+        setShowFullscreen(false); // Force close image modal
+    }
   }, [isGeneratingVideo]);
   
   // Auto-switch to image view if image starts generating
@@ -74,21 +86,48 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
       {/* Unified Display Area */}
       <div className="group relative bg-black border border-slate-800 rounded-lg overflow-hidden h-full min-h-[350px] flex items-center justify-center transition-all bg-[url('/grid-pattern.png')] flex-1">
         
+        {/* GLOBAL VISUALIZATION OVERLAY */}
+        {isVisualizing && visualizationContent && (
+             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/95 animate-in fade-in duration-300 pt-6 px-6 pb-0">
+                  {visualizationContent}
+             </div>
+        )}
+
         <AnimatePresence mode="wait">
             {activeView === 'image' ? (
                 /* IMAGE VIEW */
                 <motion.div key="image-view" className="w-full h-full absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    {isVisualizing && visualizationContent ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-black/95 z-20 pt-6 px-6 pb-0 animate-in fade-in duration-300">
-                             {visualizationContent}
-                        </div>
-                    ) : imageUrl ? (
-                        <div className="w-full h-full relative">
+                    {imageUrl ? (
+                        <div 
+                            className="w-full h-full relative cursor-zoom-in"
+                            onClick={() => setShowFullscreen(true)}
+                        >
                             <img src={imageUrl} alt="Dream visualization" className="w-full h-full object-contain" />
                             <div className="absolute inset-0 border-2 border-cyan-500/0 group-hover:border-cyan-500/50 transition-all pointer-events-none"></div>
                             <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
                                 <p className="text-cyan-400 text-xs font-mono">SOURCE: GENERATED_VISUAL</p>
                             </div>
+                            
+                            {/* Fullscreen Modal Override */}
+                            {showFullscreen && (
+                                <div 
+                                    className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-200 flex items-center justify-center cursor-default"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="w-full max-w-7xl h-full max-h-[95vh] rounded-2xl overflow-hidden shadow-2xl bg-black border border-white/10 relative">
+                                        <ResultView 
+                                            imageUrl={imageUrl} 
+                                            title="Generated Dream" 
+                                            prompt={prompt || "No prompt available"} 
+                                            onReset={() => {
+                                                setShowFullscreen(false);
+                                                if (onCancel) onCancel(); // Reset logic if needed
+                                            }}
+                                            onClose={() => setShowFullscreen(false)}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                             {/* Workflow View Button */}
                             {onShowWorkflow && (
                                 <button 
@@ -221,17 +260,23 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                                     <button 
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (hasAnalysis && !isGeneratingImage) onGenerateImage();
+                                            if (isGeneratingImage && onCancel) {
+                                                onCancel();
+                                            } else if (hasAnalysis && !isGeneratingImage) {
+                                                onGenerateImage();
+                                            }
                                         }}
-                                        disabled={!hasAnalysis || isGeneratingImage}
+                                        disabled={!hasAnalysis && !isGeneratingImage}
                                         className={`
                                             text-[9px] uppercase font-bold px-2 py-0.5 rounded transition-all
                                             ${hasAnalysis && !isGeneratingImage
                                                 ? 'text-black bg-cyan-400 hover:bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse cursor-pointer' 
-                                                : 'text-slate-500 bg-slate-800 cursor-not-allowed opacity-50'}
+                                                : isGeneratingImage 
+                                                    ? 'text-white bg-red-600 hover:bg-red-500 shadow-[0_0_10px_rgba(220,38,38,0.5)] cursor-pointer'
+                                                    : 'text-slate-500 bg-slate-800 cursor-not-allowed opacity-50'}
                                         `}
                                     >
-                                        {hasAnalysis ? (isGeneratingImage ? 'BUSY' : 'RENDER') : 'WAITING'}
+                                        {hasAnalysis ? (isGeneratingImage ? 'CANCEL' : 'RENDER') : 'WAITING'}
                                     </button>
                                 </div>
                             ) : (
@@ -257,9 +302,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
            <div
              onClick={() => {
                  setActiveView('video');
-                 if (videoEnabled && !isGeneratingVideo && hasAnalysis) {
-                     onGenerateVideo();
-                 } else if (!videoEnabled) {
+                 if (!videoEnabled) {
                      onSelectKey();
                  }
              }}
@@ -283,7 +326,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                      <div className="flex flex-col flex-1 w-full min-w-0">
                          <div className="flex items-center justify-between">
                             <span className={`text-xs font-mono font-bold leading-none ${activeView === 'video' ? 'text-pink-400' : 'text-slate-500'}`}>
-                                {videoEnabled ? 'ACTIVE: GOOGLE VEO' : 'LOCKED'}
+                                {videoEnabled ? (currentVideoModel ? `ACTIVE: ${currentVideoModel.split('.')[0].toUpperCase()}` : 'NO MODEL SELECTED') : 'LOCKED'}
                             </span>
                          </div>
                          
@@ -293,15 +336,36 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                                 High Fidelity Generation
                             </span>
                             {videoEnabled && (
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onOpenVideoSettings && onOpenVideoSettings();
-                                    }}
-                                    className="text-[9px] uppercase font-bold text-pink-500 hover:text-pink-400 bg-pink-950/30 px-2 py-0.5 rounded border border-pink-900/50 hover:border-pink-500/50 transition-all self-start sm:self-auto"
-                                >
-                                    Configure
-                                </button>
+                                <div className="flex items-center gap-1 self-start sm:self-auto">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onOpenVideoSettings && onOpenVideoSettings();
+                                        }}
+                                        className="text-[9px] uppercase font-bold text-pink-500 hover:text-white bg-pink-950/30 hover:bg-pink-700 px-2 py-0.5 rounded border border-pink-900/50 hover:border-pink-500/50 transition-all"
+                                    >
+                                        Config
+                                    </button>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (hasAnalysis && !isGeneratingVideo) {
+                                                onGenerateVideo();
+                                            }
+                                        }}
+                                        disabled={!hasAnalysis && !isGeneratingVideo}
+                                        className={`
+                                            text-[9px] uppercase font-bold px-2 py-0.5 rounded transition-all
+                                            ${hasAnalysis && !isGeneratingVideo
+                                                ? 'text-black bg-pink-500 hover:bg-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.3)] animate-pulse cursor-pointer' 
+                                                : isGeneratingVideo 
+                                                    ? 'text-white bg-pink-900 shadow-[0_0_10px_rgba(131,24,67,0.5)] cursor-wait'
+                                                    : 'text-slate-500 bg-slate-800 cursor-not-allowed opacity-50'}
+                                        `}
+                                    >
+                                        {isGeneratingVideo ? 'RENDERING...' : (hasAnalysis ? 'RENDER' : 'WAITING')}
+                                    </button>
+                                </div>
                             )}
                          </div>
                      </div>

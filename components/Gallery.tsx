@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getSavedDreams, SavedDream } from '../services/storageService';
 import { Calendar, AlignLeft, Eye, ImageIcon, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { ResultView } from './ResultView';
 
 interface GalleryProps {
     isOpen: boolean;
@@ -65,130 +66,74 @@ const Gallery: React.FC<GalleryProps> = ({ isOpen, onClose }) => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {dreams.map((dream) => (
-                        <div
-                            key={dream.id}
-                            onClick={() => setSelectedDream(dream)}
-                            className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden group hover:border-purple-500 transition-all cursor-pointer relative"
-                        >
-                            {/* Image Thumbnail */}
-                            <div className="aspect-square bg-black relative overflow-hidden">
-                                {dream.media && dream.media.length > 0 ? (
-                                    dream.media[0].type === 'image' ? (
-                                        <img
-                                            src={dream.media[0].filePath}
-                                            alt={dream.analysis.title}
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                        />
-                                    ) : (
-                                        <video src={dream.media[0].filePath} className="w-full h-full object-cover" />
-                                    )
+                        <div key={dream.id} className="h-64 sm:h-80">
+                            {dream.media && dream.media.length > 0 ? (
+                                dream.media[0].type === 'image' ? (
+                                    <ResultView
+                                        imageUrl={dream.media[0].filePath}
+                                        title={dream.analysis.title}
+                                        prompt={dream.analysis.visualPrompt || dream.rawText}
+                                        mode="card"
+                                        // No onClose implies it handles its own internal fullscreen
+                                        // But wait, Gallery used to open a big complex modal with details..
+                                        // The user said: "when i click ... it should open in a full screen modal where every other picture cards are not visible , and the full screen modal be exactly same like that of the rendered output full screen modal"
+                                        // This implies the simplified ResultView modal is what they want, NOT the old complex detail modal.
+                                        // So ResultView internal handling is perfect.
+                                    />
                                 ) : (
-                                    <div className="flex items-center justify-center h-full text-slate-700">
-                                        <ImageIcon className="w-12 h-12" />
+                                    <div 
+                                        onClick={() => setSelectedDream(dream)}
+                                        className="w-full h-full bg-slate-900 border border-slate-800 rounded-lg overflow-hidden group hover:border-purple-500 transition-all cursor-pointer relative"
+                                    >
+                                        <video src={dream.media[0].filePath} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="bg-black/50 p-3 rounded-full backdrop-blur-sm border border-white/10 group-hover:scale-110 transition-transform">
+                                                <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
+                                            </div>
+                                        </div>
                                     </div>
-                                )}
-
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                                    <p className="text-white font-bold truncate">{dream.analysis.title}</p>
-                                    <p className="text-purple-300 text-xs truncate">{dream.analysis.summary}</p>
+                                )
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-slate-700 bg-slate-900 rounded-lg border border-slate-800">
+                                    <ImageIcon className="w-12 h-12" />
                                 </div>
-                            </div>
-
-                            {/* Mini Footer */}
-                            <div className="p-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-500 font-mono">
-                                <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(dream.createdAt).toLocaleDateString()}
-                                </span>
-                                <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400">
-                                    {dream.media[0]?.type === 'image' ? 'IMG' : 'VID'}
-                                </span>
-                            </div>
+                            )}
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Detail Modal */}
-            {selectedDream && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl h-[90vh] rounded-xl flex flex-col md:flex-row overflow-hidden relative animate-in fade-in zoom-in duration-200">
-
-                        <button
-                            onClick={() => setSelectedDream(null)}
-                            className="absolute top-4 right-4 z-10 bg-black/50 hover:bg-red-500 p-2 rounded-full text-white transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-
-                        {/* Left: Image */}
-                        <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4">
-                            {selectedDream.media[0]?.type === 'image' ? (
-                                <img
-                                    src={selectedDream.media[0].filePath}
-                                    className="max-w-full max-h-full object-contain shadow-2xl"
-                                />
-                            ) : (
+            {/* Old Detailed Modal is ONLY for Video now, since Image uses internal Smart Card modal */}
+            {selectedDream && selectedDream.media[0]?.type === 'video' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 md:p-8 animate-in fade-in duration-200">
+                    <div className="w-full max-w-7xl h-full max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl bg-black border border-white/10 relative">
+                        {/* If it's a video, use basic video player for now, else ResultView */}
+                        {selectedDream.media[0]?.type === 'video' ? (
+                             <div className="relative w-full h-full flex flex-col bg-black">
+                                <button
+                                    onClick={() => setSelectedDream(null)}
+                                    className="absolute top-4 right-4 z-50 bg-black/60 hover:bg-red-500 p-2 rounded-full text-white transition-colors border border-white/10"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                                 <video
                                     src={selectedDream.media[0].filePath}
                                     controls
-                                    className="max-w-full max-h-full"
+                                    className="w-full h-full object-contain"
                                 />
-                            )}
-                        </div>
-
-                        {/* Right: Data */}
-                        <div className="w-full md:w-1/2 p-8 overflow-y-auto custom-scrollbar">
-                            <h2 className="text-3xl font-black text-white mb-2">{selectedDream.analysis.title}</h2>
-                            <p className="text-slate-400 mb-8 border-l-2 border-purple-500 pl-4 italic">
-                                {selectedDream.analysis.summary}
-                            </p>
-
-                            <div className="space-y-6">
-
-                                {/* Original Interpretation */}
-                                <div className="bg-black/30 p-4 rounded-lg border border-slate-800">
-                                    <h4 className="text-purple-400 font-bold mb-2 text-sm uppercase flex items-center gap-2">
-                                        <Eye className="w-4 h-4" /> Psychological Interpretation
-                                    </h4>
-                                    <p className="text-slate-300 text-sm leading-relaxed">
-                                        {selectedDream.analysis.interpretation}
-                                    </p>
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black p-6">
+                                     <h3 className="text-xl font-bold text-white">{selectedDream.analysis.title}</h3>
                                 </div>
-
-                                {/* Metadata Comparison */}
-                                <div className="grid grid-cols-1 gap-4">
-                                    {/* Original User Input */}
-                                    <div className="bg-slate-800/50 p-4 rounded-lg">
-                                        <h4 className="text-cyan-400 font-bold mb-2 text-xs uppercase font-mono flex items-center gap-2">
-                                            <AlignLeft className="w-3 h-3" /> Original Input
-                                        </h4>
-                                        <p className="text-slate-300 text-xs font-mono break-words">
-                                            "{selectedDream.rawText}"
-                                        </p>
-                                    </div>
-
-                                    {/* AI Visual Prompt */}
-                                    <div className="bg-slate-800/50 p-4 rounded-lg">
-                                        <h4 className="text-pink-400 font-bold mb-2 text-xs uppercase font-mono flex items-center gap-2">
-                                            <ImageIcon className="w-3 h-3" /> AI Visual Prompt
-                                        </h4>
-                                        <p className="text-slate-400 text-xs font-mono break-words border-l border-pink-500/30 pl-2">
-                                            {selectedDream.visualPrompt}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 border-t border-slate-800">
-                                    <p className="text-slate-600 text-xs font-mono">
-                                        ID: {selectedDream.id}<br />
-                                        CREATED: {formatDate(selectedDream.createdAt)}
-                                    </p>
-                                </div>
-
-                            </div>
-                        </div>
-
+                             </div>
+                        ) : (
+                            <ResultView
+                                imageUrl={selectedDream.media[0]?.filePath || ""}
+                                title={selectedDream.analysis.title}
+                                prompt={selectedDream.analysis.visualPrompt || selectedDream.rawText}
+                                onReset={() => {}} // Not needed in gallery
+                                onClose={() => setSelectedDream(null)}
+                            />
+                        )}
                     </div>
                 </div>
             )}

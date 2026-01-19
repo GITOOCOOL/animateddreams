@@ -75,29 +75,20 @@
   "20": {
     "inputs": {
       "weight": 0.8,
-      "weight_type": "linear",
-      "combine_embeds": "concat",
+      "weight_type": "standard",
+      "noise": 0.0,
       "start_at": 0.0,
       "end_at": 1.0,
-      "embeds_scaling": "V only",
-      "count": 1,
-      "ipadapter": [ "21", 0 ],
+      "ipadapter": [ "21", 1 ],
       "image": [ "12", 0 ],
-      "model": [ "4", 0 ],
-      "clip_vision": [ "22", 0 ]
+      "model": [ "4", 0 ]
     },
-    "class_type": "IPAdapterAdvanced"
+    "class_type": "IPAdapter"
   },
   "21": {
     "inputs": {
-      "ipadapter_file": "ip-adapter-plus_sdxl_vit-h.safetensors"
+      "preset": "VIT-G (medium strength)"
     },
-    "class_type": "IPAdapterModelLoader"
-  },
-  "22": {
-    "inputs": {
-      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
-    },
-    "class_type": "CLIPVisionLoader"
+    "class_type": "IPAdapterUnifiedLoader"
   }
 }

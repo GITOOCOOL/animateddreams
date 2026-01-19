@@ -12,6 +12,7 @@ import MediaPanel from './components/MediaPanel';
 import WorkflowVisualizer from './components/WorkflowVisualizer';
 import SettingsPanel from './components/SettingsPanel';
 import VideoSettingsPanel from './components/VideoSettingsPanel';
+import AnalysisPipelineVisualizer from './components/AnalysisPipelineVisualizer';
 import Gallery from './components/Gallery';
 import LogConsole from './components/LogConsole';
 import DeveloperTools from './components/DeveloperTools';
@@ -112,6 +113,15 @@ function AppContent() {
   }, [dreamState.isGeneratingImage, dreamState.generatedImageUrl]);
   
   // Audio Recorder
+  const [editablePrompt, setEditablePrompt] = useState("");
+
+  // Sync editable prompt when analysis completes
+  useEffect(() => {
+    if (dreamState.analysis?.visualPrompt) {
+        setEditablePrompt(dreamState.analysis.visualPrompt);
+    }
+  }, [dreamState.analysis]);
+
   const { startRecording, stopRecording, isRecording, audioBlob, resetAudio } = useAudioRecorder();
   const [isTranscribing, setIsTranscribing] = useState(false);
 
@@ -234,7 +244,9 @@ function AppContent() {
       reader.readAsDataURL(file);
 
       // Check for Vision Model Compatibility
-      const currentModel = engine.dualAgentSettings.psychologist.model.toLowerCase();
+      // Check for Vision Model Compatibility (Check first enabled layer)
+      const firstLayer = engine.analysisPipeline.layers.find(l => l.enabled);
+      const currentModel = firstLayer?.config.model.toLowerCase() || 'unknown';
       const isVisionModel = currentModel.includes('llava') || currentModel.includes('vision') || currentModel.includes('mmproj');
       
       if (!isVisionModel && engine.analysisModel === 'ollama') {
@@ -251,7 +263,11 @@ function AppContent() {
 
   const handleGenerate = async () => {
     setShowVisualizationModal(true);
-    const url = await generateImage(dreamInput);
+    
+    // Use editablePrompt if available, otherwise fallback
+    const analysisOverride = dreamState.analysis ? { ...dreamState.analysis, visualPrompt: editablePrompt } : undefined;
+    
+    const url = await generateImage(dreamInput, undefined, analysisOverride);
 
     if (url && iterativeMode) {
       // In iterative mode, after generation, ask for next step
@@ -328,9 +344,12 @@ function AppContent() {
        >
            {/* Replaced old AnalysisSettingsPanel with new Dual Agent Panel */}
            <AgentSettingsPanel 
-                settings={engine.dualAgentSettings} 
-                onSettingsChange={engine.setDualAgentSettings}
-                availableModels={engine.availableOllamaModels}
+                pipeline={engine.analysisPipeline} 
+                onPipelineChange={engine.setAnalysisPipeline}
+                availableOllamaModels={engine.availableOllamaModels}
+                currentLayerId={dreamState.currentLayerId}
+                isAnalyzing={dreamState.isAnalyzing}
+                finalAnalysis={dreamState.analysis}
            />
        </SettingsDialog>
 
@@ -441,6 +460,25 @@ function AppContent() {
                               statusText={dreamState.analysisStatus || 'Processing...'}
                               color="purple"
                           />
+                          
+                           <div className="mt-2 flex items-center justify-end">
+                                <button
+                                     onClick={engine.cancelAnalysis}
+                                     className="text-[10px] font-bold uppercase text-red-500 hover:text-red-400 flex items-center gap-1 transition-colors"
+                                >
+                                     <X className="w-3 h-3" /> Cancel Analysis
+                                </button>
+                           </div>
+
+                          {/* Live Pipeline Visualizer - Embedded on Main Screen */}
+                           <div className="mt-4 bg-[#1a1a1c] border border-white/5 rounded-xl p-4 shadow-lg shadow-purple-900/5 animate-in slide-in-from-top-2">
+                                <AnalysisPipelineVisualizer 
+                                     layers={engine.analysisPipeline.layers} 
+                                     currentLayerId={dreamState.currentLayerId}
+                                     isAnalyzing={dreamState.isAnalyzing}
+                                     finalAnalysis={dreamState.analysis}
+                                />
+                           </div>
                       </div>
                   )}
 
@@ -501,7 +539,11 @@ function AppContent() {
 
             {dreamState.analysis && (
               <div ref={analysisRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
-                <AnalysisCard analysis={dreamState.analysis} />
+                <AnalysisCard 
+                    analysis={dreamState.analysis} 
+                    editablePrompt={editablePrompt}
+                    onPromptChange={setEditablePrompt}
+                />
               </div>
             )}
 
@@ -528,10 +570,11 @@ function AppContent() {
                                   // Auto-close settings if open (optional, but Master modal usually stays or user closes it)
                                   setIsSystemSettingsOpen(false);
                               }}
-                          onGenerateVideo={engine.generateVideo}
+                          onGenerateVideo={() => engine.generateVideo(editablePrompt)}
                           hasAnalysis={!!dreamState.analysis}
                           videoEnabled={true}
                           onSelectKey={() => { }}
+                          onCancel={engine.cancelRender}
 
                           onOpenSettings={() => setIsGenerationSettingsOpen(true)}
                           onShowWorkflow={() => setShowVisualizationModal(true)}
@@ -539,7 +582,9 @@ function AppContent() {
                           // settingsContent removed to use global dialog
                           onOpenVideoSettings={() => setIsVideoSettingsOpen(true)}
                           availableModels={availableModels}
+                          availableNodeTypes={engine.availableNodeTypes}
                           currentModel={engine.comfySettings.model || ''}
+                          currentVideoModel={engine.videoSettings.model}
                           onModelSelect={(m) => engine.setComfySettings(prev => ({ ...prev, model: m }))}
                           isComfyConnected={engine.isComfyConnected}
                           progress={dreamState.progress}
@@ -564,6 +609,7 @@ function AppContent() {
                                                          : 'Text-to-Image'
                                               }
                                               activeNodeId={engine.activeNodeId}
+                                              dynamicWorkflow={engine.activeWorkflow} 
                                               inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
                                               outputImageUrl={dreamState.generatedImageUrl}
                                             />
@@ -644,12 +690,16 @@ function AppContent() {
 
 
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 export default function App() {
   return (
-    <AuthProvider>
-      <ConnectionProvider>
-        <AppContent />
-      </ConnectionProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ConnectionProvider>
+          <AppContent />
+        </ConnectionProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { analyzeDreamGemini } from '../services/geminiService';
-import { analyzeDreamTextOllama } from '../services/ollamaService';
-import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvailableModels, getAvailableLoras, getAvailableIPAdapters } from '../services/comfyService';
+import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvailableModels, getAvailableLoras, getAvailableIPAdapters, cancelGeneration } from '../services/comfyService';
 import { saveDreamToDatabase } from '../services/storageService';
 import { DreamState, ComfySettings, VideoSettings, DreamAttachment } from '../types';
 import { useConnections } from '../contexts/ConnectionContext';
@@ -57,10 +56,14 @@ export const useDreamEngine = (
     const [availableModels, setAvailableModels] = useState<string[]>([]); // Comfy Models
     const [availableLoras, setAvailableLoras] = useState<string[]>([]);
     const [availableIPAdapters, setAvailableIPAdapters] = useState<string[]>([]);
+    const [availableNodeTypes, setAvailableNodeTypes] = useState<string[]>([]); // New State
     const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]); // New: Ollama Models
     
     // Analysis Settings
     const [analysisModel, setAnalysisModel] = useState<'gemini' | 'ollama' | 'raw' | null>(null);
+
+    // Active Workflow State (for Visualization)
+    const [activeWorkflow, setActiveWorkflow] = useState<any>(null);
 
     // Comfy Settings State
     const [comfySettings, setComfySettings] = useState<ComfySettings>({
@@ -72,7 +75,8 @@ export const useDreamEngine = (
         height: 768,
         batchSize: 1,
         model: '', // User must select
-        lora: 'None',
+        loras: [], // Multi-LoRA Support
+        lora: 'None', // Legacy: Keep for now until full migration
         loraStrength: 1.0,
         denoise: 0.75,
         seed: undefined,
@@ -80,27 +84,52 @@ export const useDreamEngine = (
     });
 
     const [videoSettings, setVideoSettings] = useState<VideoSettings>({
-        model: 'Google Veo',
+        model: '', // Requires manual selection
         fps: 24,
         duration: 6,
         motionBucketId: 127
     });
 
-    // Dual Agent Settings
-    const [dualAgentSettings, setDualAgentSettings] = useState<import('../types').DualAgentSettings>({
-        useDualAgent: true,
-        psychologist: {
-            provider: 'ollama',
-            model: 'llama3:latest',
-            temperature: 0.7,
-            systemPrompt: "You are Dr. Jung, an expert analytical psychologist. Analyze the dream for hidden emotions and archetypal symbolism."
-        },
-        visualizer: {
-            provider: 'ollama',
-            model: 'llama3:latest',
-            temperature: 0.7,
-            systemPrompt: "You are an expert AI Art Director. Translate the dream's mood into a precise Stable Diffusion XL (SDXL) prompt."
-        }
+    // Multi-Layer Pipeline Settings
+    const [analysisPipeline, setAnalysisPipeline] = useState<import('../types').AnalysisPipeline>({
+        layers: [
+            {
+                id: 'default-layer-vision',
+                name: "Image Analyzer",
+                role: "Vision",
+                enabled: true,
+                config: {
+                    provider: 'ollama',
+                    model: import.meta.env.VITE_OLLAMA_VISION_MODEL || 'llava:latest',
+                    temperature: 0.2,
+                    systemPrompt: "You are an expert Computer Vision Analyst. Describe the main subject, lighting, colors, style, and composition of the input image. Be specific and focus on artistic intent."
+                }
+            },
+            {
+                id: 'default-layer-enhancer',
+                name: "Prompt Engineer",
+                role: "Enhancer",
+                enabled: true,
+                config: {
+                    provider: 'ollama',
+                    model: import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest',
+                    temperature: 0.7,
+                    systemPrompt: "You are an expert AI Art Director. ENHANCE the input concept into a high-quality SDXL prompt. RETAIN user intent but ADD professional keywords (8k, unreal engine 5, cinematic). Focus on visual descriptors."
+                }
+            },
+            {
+                id: 'default-layer-json',
+                name: "JSON Formatter",
+                role: "Formatter",
+                enabled: true,
+                config: {
+                    provider: 'ollama',
+                    model: import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest',
+                    temperature: 0.1,
+                    systemPrompt: "You are a Data Formatter. Convert the provided artistic description into a valid JSON object. \n\nReturn ONLY valid JSON with this exact structure:\n{ \"title\": \"...\", \"summary\": \"...\", \"interpretation\": \"...\", \"symbolism\": [...], \"mood\": \"...\", \"visualPrompt\": \"...\" }"
+                }
+            }
+        ]
     });
 
 
@@ -117,7 +146,10 @@ export const useDreamEngine = (
         raw: true
     });
 
-    // Initialization & Heartbeat
+    // Refs
+    const abortRef = useRef<AbortController | null>(null);
+
+    // Initial Progress Loop
     useEffect(() => {
         // checks removed to allow dynamic updates when settings change
 
@@ -156,6 +188,8 @@ export const useDreamEngine = (
                          setComfySettings(prev => ({ ...prev, ipAdapterModel: ips.find(m => m.includes('plus_sdxl_vit-h')) || ips[0] }));
                      }
                 });
+                // Fetch Node Definitions
+                import('../services/comfyService').then(m => m.getAvailableNodeTypes(comfyHost).then(types => setAvailableNodeTypes(types)));
 
             } else if (!comfyOnline && isComfyConnected) {
                 // State Transition: Online -> Offline
@@ -164,37 +198,33 @@ export const useDreamEngine = (
                 // Optional: Clear models? setAvailableModels([]); 
             }
             
-            // Check Ollama (Ping Only) - Conditional: Only if selected or initializing
-            const shouldCheckOllama = analysisModel === 'ollama' || analysisModel === null;
+            // Check Ollama (Ping Only) - Conditional: always check for now
+            const ollamaSvc = await import('../services/ollamaService');
+            const ollamaOnline = await ollamaSvc.checkOllamaConnection(connections.ollamaHost);
             
-            if (shouldCheckOllama) {
-                const ollamaSvc = await import('../services/ollamaService');
-                const ollamaOnline = await ollamaSvc.checkOllamaConnection(connections.ollamaHost);
+            if (ollamaOnline && !modelAvailability.ollama) {
+                // State Transition: Offline -> Online
+                setModelAvailability(prev => ({ ...prev, ollama: true }));
                 
-                if (ollamaOnline && !modelAvailability.ollama) {
-                    // State Transition: Offline -> Online
-                    setModelAvailability(prev => ({ ...prev, ollama: true }));
-                    
-                    // Fetch Version only on connect
-                    const ver = await ollamaSvc.getOllamaVersion(connections.ollamaHost);
-                    const version = ver || "Unknown";
-                    setEngineVersions(prev => ({ ...prev, ollama: version }));
-    
-                    const textModel = import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest';
-                    addLog(`Ollama Detected (v${version}) - Model: ${textModel}`);
+                // Fetch Version only on connect
+                const ver = await ollamaSvc.getOllamaVersion(connections.ollamaHost);
+                const version = ver || "Unknown";
+                setEngineVersions(prev => ({ ...prev, ollama: version }));
 
-                    // Fetch Models List
-                    ollamaSvc.getOllamaModels(connections.ollamaHost).then(models => {
-                         setAvailableOllamaModels(models);
-                         // Optional: addLog(`Ollama Models: ${models.join(', ')}`);
-                    });
-    
-                } else if(!ollamaOnline && modelAvailability.ollama) {
-                    // State Transition: Online -> Offline
-                    setModelAvailability(prev => ({ ...prev, ollama: false }));
-                    // addLog("Ollama Connection Lost"); // Optional logging
-                }
+                const textModel = import.meta.env.VITE_OLLAMA_TEXT_MODEL || 'llama3:latest';
+                addLog(`Ollama Detected (v${version})`);
+
+                // Fetch Models List
+                ollamaSvc.getOllamaModels(connections.ollamaHost).then(models => {
+                        setAvailableOllamaModels(models);
+                }); // Check every 10s for new models? maybe overkill.
+                
+            } else if(!ollamaOnline && modelAvailability.ollama) {
+                // State Transition: Online -> Offline
+                setModelAvailability(prev => ({ ...prev, ollama: false }));
+                // addLog("Ollama Connection Lost"); // Optional logging
             }
+            
         };
 
         // Initial check
@@ -209,118 +239,236 @@ export const useDreamEngine = (
         }
 
         return () => clearInterval(intervalId);
-    }, [addLog, comfyHost, connections.ollamaHost, isComfyConnected, modelAvailability.ollama, availableModels.length, analysisModel]);
+    }, [addLog, comfyHost, connections.ollamaHost, isComfyConnected, modelAvailability.ollama, availableModels.length]);
 
     const processDream = async (dreamInput: string, attachments: DreamAttachment[] = []) => {
-        if (!analysisModel) {
-            addLog("[Error] No Analysis Engine Selected.");
+        if (!dreamInput.trim()) return;
+
+        // Check for RAW bypass
+        if (analysisModel === 'raw') {
+            setDreamState(prev => ({
+                ...prev,
+                isAnalyzing: true, 
+                analysisProgress: 50, 
+                error: null,
+                analysisStatus: 'Bypassing Neural Analysis...',
+                rawText: dreamInput,
+                attachments
+            }));
+            
+            // Simulate brief delay for UX
+            await new Promise(r => setTimeout(r, 600));
+
+            const dummyAnalysis = {
+                title: "Direct Input",
+                summary: "Raw input used directly.",
+                interpretation: "Neural bypass active.",
+                symbolism: [],
+                visualPrompt: dreamInput, 
+                mood: "Neutral"
+            };
+            
+            setDreamState(prev => ({
+                ...prev,
+                isAnalyzing: false,
+                analysisProgress: 100,
+                analysisStatus: 'Ready',
+                analysis: dummyAnalysis
+            }));
+            addLog("[System] Analysis Bypassed (Raw Mode).");
             return;
         }
-        if (!dreamInput.trim()) return;
+
+        const activeLayers = analysisPipeline.layers.filter(l => l.enabled);
+        
+        if (activeLayers.length === 0) {
+             addLog("[Error] No active analysis layers defined.");
+             return;
+        }
+
+        abortRef.current = new AbortController();
 
         setDreamState(prev => ({
             ...prev,
-            isAnalyzing: true, // Show analysis progress bar
-            analysisProgress: 0, // Reset to 0 first
+            isAnalyzing: true, 
+            analysisProgress: 0, 
             error: null,
-            // Keep previous analysis to allow concurrent rendering of old prompt
-            analysisStatus: analysisModel === 'raw' ? 'Skipping Analysis...' : `Analyzing Pattern (${analysisModel})...`,
-            // progressStatus: LEFT ALONE (Preserves generation status)
+            analysisStatus: 'Starting Pipeline...',
+            currentLayerId: undefined,
             rawText: dreamInput,
             attachments
         }));
         
-        if (analysisModel === 'raw') {
-             addLog("Analysis Skipped (Raw Mode)");
-             // Immediate "Video/Image" ready state without analysis
-             const dummyAnalysis = {
-                title: "Raw Input",
-                summary: "Direct visual translation of user input.",
-                interpretation: "None",
-                symbolism: [],
-                visualPrompt: dreamInput
-             };
-             
-             setDreamState(prev => ({
-                ...prev,
-                analysis: dummyAnalysis,
-                analysisProgress: 100,
-                analysisStatus: 'Ready for Generation',
-                isLoading: false,
-                isAnalyzing: false // <--- FIXED: Ensure analysis mode ends
-            }));
-            addLog("Visual Prompt Ready (Raw)");
-            return;
-        }
-
-        addLog(`Analyzing Dream Pattern using ${analysisModel.toUpperCase()}...`);
-
-        // Start Fake Progress Ticker
-        const ticker = setInterval(() => {
-             setDreamState(prev => {
-                 if (prev.analysisProgress >= 90) return prev; // Cap at 90%
-                 return { ...prev, analysisProgress: prev.analysisProgress + 5 };
-             });
-        }, 800);
+        // Multi-Layer Execution Loop
+        let currentContext = dreamInput; // Output of previous layer inputs into next
+        let finalJsonResult: any = null;
 
         try {
-            let analysis;
+            const ollamaSvc = await import('../services/ollamaService');
+            
+            for (let i = 0; i < activeLayers.length; i++) {
+                
+                if (abortRef.current?.signal.aborted) throw new Error("Analysis Cancelled");
 
-            if (devSettings.mockAnalysis) {
-                await new Promise(r => setTimeout(r, 1500)); // Fake delay
-                analysis = {
-                    title: "Mock Dream Analysis",
-                    summary: "This is a simulated analysis of the dream.",
-                    interpretation: "The dream reflects a desire for testing functionality without API costs.",
-                    symbolism: ["Testing", "Simulation", "Efficiency"],
-                    visualPrompt: "A holographic debugging interface, neon blue wires, glitch art style, floating code snippets, cyberpunk aesthetic"
-                };
-                addLog("[MOCK] Analysis generated successfully");
-            } else if (analysisModel === 'ollama') {
-                addLog(`[Ollama] Sending request to ${dreamState.attachments?.length ? 'Vision' : 'Text'} model...`);
-                analysis = await analyzeDreamTextOllama(
-                    dreamInput, 
-                    attachments, 
-                    connections.ollamaHost, 
-                    dualAgentSettings,
-                    addOllamaLog
-                );
-                addLog(`[Ollama] Analysis received. Title: ${analysis.title}`);
+                const layer = activeLayers[i];
+                addLog(`[Pipeline] Running Layer ${i+1}: ${layer.name} (${layer.config.provider})`);
+                
+                setDreamState(prev => ({
+                    ...prev,
+                    currentLayerId: layer.id,
+                    analysisStatus: `Processing: ${layer.name}...`,
+                    analysisProgress: Math.round(((i) / activeLayers.length) * 100)
+                }));
+
+                let layerOutput;
+
+                if (layer.config.provider === 'raw') {
+                    // Pass-through or simple verify
+                    layerOutput = currentContext;
+                    addLog(`[Pipeline] Raw Pass-through.`);
+                } else if (layer.config.provider === 'ollama') {
+                     // Run Ollama Layer
+                     layerOutput = await ollamaSvc.runOllamaLayer(
+                        connections.ollamaHost, 
+                        layer.config, 
+                        // For first layer, use raw input. For others, use context.
+                        // We append "Original Input: ..." if needed, but for now simple chain.
+                        // Actually, we should probably keep original input accessible.
+                        i === 0 ? currentContext : `Original Request: ${dreamInput}\n\nContext to Process:\n${typeof currentContext === 'string' ? currentContext : JSON.stringify(currentContext)}`,
+                        currentContext,
+                        attachments.map(a => a.base64),
+                        addOllamaLog,
+                        abortRef.current?.signal
+                     );
+                } else if (layer.config.provider === 'gemini') {
+                     // Wrapper for Gemini (assumes it handles string/json)
+                     addLog(`[Pipeline] Gemini Layer invoked.`);
+                     const fullPrompt = layer.config.systemPrompt 
+                        ? `${layer.config.systemPrompt}\n\nInput: ${typeof currentContext === 'string' ? currentContext : JSON.stringify(currentContext)}` 
+                        : typeof currentContext === 'string' ? currentContext : JSON.stringify(currentContext);
+                     
+                     const geminiResult = await analyzeDreamGemini(fullPrompt, attachments);
+                     layerOutput = geminiResult; 
+                }
+
+                // Check for Refusals / Safety Filters
+                if (typeof layerOutput === 'string') {
+                    const REFUSAL_PATTERNS = [
+                        "I cannot create explicit content",
+                        "I cannot fulfill this request",
+                        "I apologize",
+                        "safety guidelines",
+                        "unable to generate",
+                        "explicit or adult content",
+                        "I cannot generate"
+                    ];
+                    
+                    const lowerOutput = layerOutput.toLowerCase();
+                    if (REFUSAL_PATTERNS.some(p => lowerOutput.includes(p.toLowerCase()))) {
+                         addLog(`[System] Model Refusal Detected: "${layerOutput.slice(0, 50)}..."`);
+                         throw new Error("Model Refused Request (Safety Filter). Try using 'Raw Mode' or adjusting your prompt.");
+                    }
+                }
+
+                // Update Context for next layer
+                currentContext = layerOutput;
+                
+                // If it's the last layer, use this as final result
+                if (i === activeLayers.length - 1) {
+                    finalJsonResult = layerOutput;
+                }
+            }
+            
+            if (abortRef.current?.signal.aborted) throw new Error("Analysis Cancelled");
+
+            // Final Validation
+            // Ensure we have a valid DreamAnalysis object (title, visualPrompt, etc)
+            // If the last layer output is just a string, we wrap it.
+            let validAnalysis: any = finalJsonResult;
+            
+             // Robust Validation Strategy
+            if (typeof validAnalysis === 'string') {
+                 // Try to see if it's a stringified JSON
+                 try {
+                     const parsed = JSON.parse(validAnalysis);
+                     if (typeof parsed === 'object' && parsed !== null) {
+                         validAnalysis = parsed;
+                     } 
+                 } catch (e) {
+                     // Not JSON, assume raw string
+                 }
+            }
+            
+            // Check if it's still a string (failed parse) or missing visualPrompt
+            if (typeof validAnalysis === 'string') {
+                 validAnalysis = {
+                    title: "Pipeline Result (Raw)",
+                    summary: "Generated via multi-layer pipeline.",
+                    interpretation: validAnalysis.slice(0, 100) + "...",
+                    symbolism: [],
+                    visualPrompt: validAnalysis, 
+                    mood: "Neutral"
+                 };
+            } else if (typeof validAnalysis === 'object' && validAnalysis !== null) {
+                 // Check for "visualPrompt", fallback to common synonyms
+                 if (!validAnalysis.visualPrompt) {
+                     validAnalysis.visualPrompt = validAnalysis.visual_prompt || validAnalysis.prompt || validAnalysis.sdxl_prompt || validAnalysis.description;
+                 }
+                 
+                 // If STILL missing, fallback to stringifying the whole object as prompt (better than error)
+                 if (!validAnalysis.visualPrompt) {
+                     validAnalysis.visualPrompt = JSON.stringify(validAnalysis);
+                 }
+
+                 // CRITICAL: Ensure arrays exist to prevent UI Crashes
+                 if (!Array.isArray(validAnalysis.symbolism)) {
+                     validAnalysis.symbolism = [];
+                 }
+                 if (!validAnalysis.mood) validAnalysis.mood = "Neutral";
+                 if (!validAnalysis.title) validAnalysis.title = "Untitled Analysis";
             } else {
-                addLog(`[Gemini] Sending request to cloud...`);
-                analysis = await analyzeDreamGemini(dreamInput, attachments);
-                addLog(`[Gemini] Analysis received.`);
+                 // Null or undefined
+                 throw new Error("Pipeline returned empty result.");
             }
 
-            clearInterval(ticker); // Stop ticker
             setDreamState(prev => ({
                 ...prev,
-                analysis,
-                isAnalyzing: true, // Keep visible to show "Complete" state
+                analysis: validAnalysis,
+                isAnalyzing: false, // Done
                 analysisProgress: 100,
-                analysisStatus: 'Analysis Complete'
+                analysisStatus: 'Pipeline Complete',
+                currentLayerId: undefined // Reset visualizer active state
             }));
-            addLog("Visual Prompt Generated");            
+            addLog("Pipeline Execution Successful");            
 
         } catch (error) {
-            clearInterval(ticker); // Stop ticker
             console.error(error);
             setDreamState(prev => ({
                 ...prev,
-                isLoading: false, // Stop loading spinner
+                isLoading: false, 
                 analysisProgress: 0,
-                isAnalyzing: false, // Hide bar on error
-                error: error instanceof Error ? error.message : 'Failed to process',
-                showFallbackConfirmation: true // Trigger fallback UI
+                isAnalyzing: false, 
+                error: error instanceof Error ? error.message : 'Pipeline Failed',
+                showFallbackConfirmation: error instanceof Error && error.message === "Analysis Cancelled" ? false : true 
             }));
-            addLog(`Error: ${error}`);
-            addLog("Waiting for user fallback confirmation...");
+            addLog(`Pipeline Error: ${error}`);
+            if (!(error instanceof Error && error.message === "Analysis Cancelled")) {
+                addLog("Waiting for fallback...");
+            }
         } finally {
+            abortRef.current = null;
             if (!dreamState.showFallbackConfirmation) {
                  setDreamState(prev => ({ ...prev, isLoading: false }));
             }
         }
     };
+
+    const cancelAnalysis = useCallback(() => {
+        if (abortRef.current) {
+            abortRef.current.abort();
+            addLog("[System] Analysis Cancellation Requested.");
+        }
+    }, [addLog]);
 
     const generateImage = async (originalPrompt: string, inputImage?: File, analysisOverride?: any) => {
         const analysisToUse = analysisOverride || dreamState.analysis;
@@ -411,27 +559,41 @@ export const useDreamEngine = (
 
             return imageUrl;
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            
+            // Enhanced Error Handling for Common Missing Models
+            let errorMessage = "Generation failed";
+            if (error?.message?.includes("ClipVision model not found")) {
+                 errorMessage = "Missing Dependency: CLIP Vision Model. Please download 'CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors' to 'ComfyUI/models/clip_vision'.";
+            } else if (error?.message?.includes("IPAdapter")) {
+                 errorMessage = `IP-Adapter Error: ${error.message}. Verify models in 'ComfyUI/models/ipadapter'.`;
+            } else {
+                 errorMessage = `Generation Failed: ${error?.message || error}`;
+            }
+
             setDreamState(prev => ({
                 ...prev,
                 isGeneratingImage: false,
                 progress: 0,
-                error: "Generation failed"
+                error: errorMessage
             }));
-            addLog(`Generation Failed: ${error}`);
+            addLog(`[Error] ${errorMessage}`);
         }
     };
 
-    const generateVideo = async () => {
-        if (!dreamState.generatedImageUrl) {
-             addLog("[Error] No Source Image. Please generate an image first.");
+    const generateVideo = async (promptOverride?: string) => {
+        const isAnimateDiff = videoSettings.model?.toLowerCase().includes('animate') || videoSettings.model?.toLowerCase().includes('motion');
+        
+        if (!dreamState.generatedImageUrl && !isAnimateDiff) {
+             addLog("[Error] No Source Image. Please generate an image first or switch to an AnimateDiff model.");
              return;
         }
 
         setDreamState(prev => ({
             ...prev,
             isGeneratingVideo: true,
+            generatedVideoUrl: null, // Clear previous output
             progress: 0,
             progressStatus: 'Initializing SVD Core...'
         }));
@@ -455,7 +617,10 @@ export const useDreamEngine = (
                         }));
                      },
                      addLog,
-                     comfyHost
+                     comfyHost,
+                     promptOverride || dreamState.analysis?.visualPrompt || dreamState.rawText || "A cinematic video",
+                     (nodeId) => setActiveNodeId(nodeId), // Active Node Tracking
+                     (workflow) => setActiveWorkflow(workflow) // Workflow Structure Capture
                  );
             }
 
@@ -467,6 +632,28 @@ export const useDreamEngine = (
                 generatedVideoUrl: videoUrl
             }));
             addLog("Video Generation Successful");
+
+            // Save to Database
+            const analysisToSave = dreamState.analysis || {
+                title: "Video Generation",
+                summary: "Direct video generation",
+                interpretation: "None",
+                symbolism: [],
+                visualPrompt: promptOverride || dreamState.rawText || "Video"
+            };
+
+            try {
+                await saveDreamToDatabase({
+                    id: generateUUID(),
+                    rawText: dreamState.rawText || "Video Generation",
+                    analysis: analysisToSave, // Safe assertion or fallback
+                    generatedVideoUrl: videoUrl
+                });
+                addLog("Video Dream Saved to History");
+            } catch (saveError) {
+                console.error("Failed to save video dream:", saveError);
+                addLog(`Warning: Failed to save video (${saveError})`);
+            }
 
         } catch (error) {
              console.error(error);
@@ -519,10 +706,25 @@ export const useDreamEngine = (
         return avail;
     };
 
+    const cancelRender = useCallback(async () => {
+        if (dreamState.isGeneratingImage || dreamState.isGeneratingVideo) {
+            addLog("Cancelling generation...");
+            setDreamState(prev => ({
+                ...prev,
+                isGeneratingImage: false,
+                isGeneratingVideo: false,
+                isLoading: false,
+                progressStatus: 'Cancelled'
+            }));
+            await cancelGeneration(comfyHost);
+        }
+    }, [dreamState.isGeneratingImage, dreamState.isGeneratingVideo, comfyHost, addLog]);
+
     return {
         dreamState,
         setDreamState,
         activeNodeId,
+        activeWorkflow,
         isComfyConnected,
         isRemote,
         comfySettings,
@@ -530,10 +732,13 @@ export const useDreamEngine = (
         availableModels,
         availableLoras,
         availableIPAdapters,
+        availableNodeTypes,
         availableOllamaModels,
         processDream,
+        cancelAnalysis, // New
         generateImage,
         generateVideo,
+        cancelRender, // Exposed
         resetState,
         analysisModel,
         setAnalysisModel,
@@ -545,7 +750,7 @@ export const useDreamEngine = (
         videoSettings,
         setVideoSettings,
         triggerGeminiCheck,
-        dualAgentSettings,
-        setDualAgentSettings
+        analysisPipeline,
+        setAnalysisPipeline
     };
 };
