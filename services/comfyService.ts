@@ -172,6 +172,24 @@ export const getAvailableLoras = async (host: string): Promise<string[]> => {
 };
 
 /**
+ * Fetches the list of available IP Adapter models.
+ */
+export const getAvailableIPAdapters = async (host: string): Promise<string[]> => {
+    try {
+        const response = await fetch(`${host}/object_info/IPAdapterModelLoader`);
+        if (!response.ok) throw new Error("Failed to fetch object info");
+
+        const data = await response.json();
+        // data.IPAdapterModelLoader.input.required.ipadapter_file[0]
+        const models = data.IPAdapterModelLoader?.input?.required?.ipadapter_file?.[0];
+        return models || [];
+    } catch (error) {
+        console.error("Failed to fetch IP Adapters:", error);
+        return [];
+    }
+};
+
+/**
  * modifyWorkflow:
  * Recursively updates the prompt in the workflow JSON.
  */
@@ -255,6 +273,11 @@ const modifyWorkflow = (baseWorkflow: any, visualPrompt: string, originalPrompt:
       if (newWorkflow["20"] && newWorkflow["20"].inputs) {
           newWorkflow["20"].inputs.image = ["11", 0];
       }
+  }
+
+  // Set IP Adapter Model (Node 21)
+  if (newWorkflow["21"] && newWorkflow["21"].inputs && settings && settings.ipAdapterModel) {
+      newWorkflow["21"].inputs.ipadapter_file = settings.ipAdapterModel;
   }
 
   // Inject LoRA if selected

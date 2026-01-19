@@ -125,24 +125,30 @@ const callOllamaAgent = async (
     }
 
     log(`Response Received (${textResponse.length} chars)`);
-    console.log(`[Ollama Raw] Model: ${model}, Response:`, textResponse);
+    // console.log(`[Ollama Raw] Model: ${model}, Response:`, textResponse);
 
+    // Robust JSON Cleanup & Parsing
     try {
+        // 1. Try direct parse
         return JSON.parse(textResponse);
     } catch (e) {
-        log(`JSON Parse Error: ${e}`);
-        console.error("[Ollama JSON Parse Error] Failed to parse:", textResponse);
-        // Fallback: Try to find JSON object if wrapped in text
-        const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            try {
-                return JSON.parse(jsonMatch[0]);
-            } catch (e2) {
-                console.error("Fallback JSON parse failed.");
+        // 2. Try stripping Markdown Code Blocks (```json ... ```)
+        const markdownCleaned = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+        try {
+            return JSON.parse(markdownCleaned);
+        } catch (e2) {
+             // 3. Regex Extraction (Find { ... } from the very first opening bracket to the very last closing bracket)
+            const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    return JSON.parse(jsonMatch[0]);
+                } catch (e3) {
+                    console.error("Fallback JSON regex extraction failed.");
+                }
             }
         }
-        // CRITICAL FIX: Return raw string instead of throwing, so validateAnalysis can rescue it
-        console.warn("[Ollama] Returning raw text response for fallback handling.");
+        
+        console.warn("[Ollama] Parsing failed. Returning raw text.");
         return textResponse;
     }
 };

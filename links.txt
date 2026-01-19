@@ -1,0 +1,37 @@
+Juggernaut XL Download Links
+============================
+
+1. Juggernaut XL (Checkpoint)
+   Civitai Link: https://civitai.com/api/download/models/456194
+   Target Folder: ComfyUI/models/checkpoints/
+
+2. IP-Adapter-Plus-Face SDXL ViT-H (Face Identity)
+   HuggingFace Link: https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors
+   Target Folder: ComfyUI/models/ipadapter/
+
+Enhancement LoRAs (Hair, Face, Skin)
+=====================================
+
+3. Super Detailer SDXL (Hair & Skin)
+   Civitai Link: https://civitai.com/api/download/models/289078
+   Target Folder: ComfyUI/models/loras/
+
+4. Hair Style SDXL (Photorealistic)
+   Civitai Link: https://civitai.com/api/download/models/129316
+   Target Folder: ComfyUI/models/loras/
+
+5. Polyhedron Skin (LoRA) - Realistic Skin Texture
+   Civitai Link: https://civitai.com/api/download/models/129792
+   Target Folder: ComfyUI/models/loras/
+
+6. Perfect Eyes XL (LoRA) - Eye Refinement
+   Civitai Link: https://civitai.com/api/download/models/118412
+   Target Folder: ComfyUI/models/loras/
+
+7. Rendered Face Detailer (LoRA) - Face Structure
+   Civitai Link: https://civitai.com/api/download/models/140645
+   Target Folder: ComfyUI/models/loras/
+
+8. Detail Tweaker XL (LoRA) - General Detail
+   Civitai Link: https://civitai.com/api/download/models/135867
+   Target Folder: ComfyUI/models/loras/

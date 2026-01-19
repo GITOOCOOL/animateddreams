@@ -31,6 +31,7 @@ export interface ComfySettings {
   loraStrength?: number;
   seed?: number; // Optional seed override
   useIpAdapter?: boolean; // Face Matching
+  ipAdapterModel?: string; // Specific IP Adapter Model File
   useOriginalDimensions?: boolean; // Bypass resizing
 }
 
@@ -71,6 +72,7 @@ export interface DreamState {
   progress: number; // For Neural Generation
   progressStatus: string;
   analysisProgress: number; // For Text Analysis
+  analysisStatus?: string; // Separate status for Analysis
 }
 
 declare global {

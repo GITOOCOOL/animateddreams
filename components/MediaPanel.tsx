@@ -14,6 +14,7 @@ interface MediaPanelProps {
   videoEnabled: boolean;
   onSelectKey: () => void;
   progress?: number;
+  progressStatus?: string;
   onOpenSettings?: () => void;
   isModelSelected: boolean;
   settingsContent?: React.ReactNode;
@@ -42,6 +43,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
   videoEnabled,
   onSelectKey,
   progress = 0,
+  progressStatus,
   onOpenSettings,
   isModelSelected,
   settingsContent,
@@ -77,7 +79,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                 /* IMAGE VIEW */
                 <motion.div key="image-view" className="w-full h-full absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     {isVisualizing && visualizationContent ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-black/95 z-20 p-6 animate-in fade-in duration-300">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-black/95 z-20 pt-6 px-6 pb-0 animate-in fade-in duration-300">
                              {visualizationContent}
                         </div>
                     ) : imageUrl ? (
@@ -147,12 +149,26 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
         </AnimatePresence>
         
         {/* Progress Bar Overlay */}
-        {(isGeneratingImage || isGeneratingVideo || progress > 0) && (
-            <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none">
-                 <ProgressBar progress={progress} />
-            </div>
-        )}
       </div>
+      
+      {/* Progress Bar (External) & Stats */}
+      {(isGeneratingImage || isGeneratingVideo || progress > 0) && (
+          <div className="w-full mt-2 z-20">
+               {/* Stats Display */}
+               <div className="flex justify-between items-end px-1 mb-1">
+                   <span className="text-[10px] font-mono uppercase text-cyan-400/80">
+                       
+                   </span>
+                   <span className="text-[10px] font-mono text-white/90">
+                       {progressStatus}
+                   </span>
+               </div>
+               
+               <div className="pointer-events-none">
+                    <ProgressBar progress={progress} />
+               </div>
+          </div>
+      )}
 
        {/* Bottom Controls */}
        <div className="flex flex-col items-stretch gap-4">
@@ -205,17 +221,17 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                                     <button 
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (hasAnalysis && !isVisualizing && !isGeneratingImage) onGenerateImage();
+                                            if (hasAnalysis && !isGeneratingImage) onGenerateImage();
                                         }}
-                                        disabled={!hasAnalysis || isVisualizing || isGeneratingImage}
+                                        disabled={!hasAnalysis || isGeneratingImage}
                                         className={`
                                             text-[9px] uppercase font-bold px-2 py-0.5 rounded transition-all
-                                            ${hasAnalysis && !isVisualizing && !isGeneratingImage
+                                            ${hasAnalysis && !isGeneratingImage
                                                 ? 'text-black bg-cyan-400 hover:bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse cursor-pointer' 
                                                 : 'text-slate-500 bg-slate-800 cursor-not-allowed opacity-50'}
                                         `}
                                     >
-                                        {hasAnalysis ? (isVisualizing || isGeneratingImage ? 'BUSY' : 'RENDER') : 'WAITING'}
+                                        {hasAnalysis ? (isGeneratingImage ? 'BUSY' : 'RENDER') : 'WAITING'}
                                     </button>
                                 </div>
                             ) : (

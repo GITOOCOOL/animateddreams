@@ -354,6 +354,7 @@ function AppContent() {
             onSettingsChange={engine.setComfySettings}
             availableModels={availableModels}
             availableLoras={availableLoras}
+            availableIPAdapters={engine.availableIPAdapters}
             inputImage={attachments.find(a => a.mimeType.startsWith('image/'))}
             onDone={() => setIsGenerationSettingsOpen(false)}
           />
@@ -437,7 +438,7 @@ function AppContent() {
                           <ProgressBar 
                               progress={dreamState.analysisProgress} 
                               label="ANALYZING TEXT PATTERNS" 
-                              statusText={dreamState.progressStatus}
+                              statusText={dreamState.analysisStatus || 'Processing...'}
                               color="purple"
                           />
                       </div>
@@ -531,7 +532,7 @@ function AppContent() {
                           hasAnalysis={!!dreamState.analysis}
                           videoEnabled={true}
                           onSelectKey={() => { }}
-                          progress={dreamState.progress}
+
                           onOpenSettings={() => setIsGenerationSettingsOpen(true)}
                           onShowWorkflow={() => setShowVisualizationModal(true)}
                           isModelSelected={!!engine.comfySettings.model}
@@ -541,62 +542,48 @@ function AppContent() {
                           currentModel={engine.comfySettings.model || ''}
                           onModelSelect={(m) => engine.setComfySettings(prev => ({ ...prev, model: m }))}
                           isComfyConnected={engine.isComfyConnected}
-                          isVisualizing={showVisualizationModal || dreamState.isGeneratingImage || (!!dreamState.generatedImageUrl && dreamState.progressStatus === 'Complete')}
+                          progress={dreamState.progress}
+                          progressStatus={dreamState.progressStatus}
+                          isVisualizing={(dreamState.progress > 0 && dreamState.progress < 100) || !!dreamState.generatedImageUrl}
                           visualizationContent={
-                              <div className="w-full h-full flex flex-col gap-4">
-                                  {dreamState.isGeneratingImage ? (
+                               (dreamState.progress > 0 && dreamState.progress < 100) ? (
                                       <>
-                                         <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 tracking-widest uppercase flex items-center justify-between flex-shrink-0">
-                                           <span>Neural Synthesis In Progress</span>
-                                           <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
-                                         </h3>
-                                         
-                                         <div className="w-full flex-1 bg-black/50 rounded-lg overflow-hidden border border-white/5 relative group min-h-[300px]">
-                                           <WorkflowVisualizer
-                                             settings={engine.comfySettings}
-                                             workflowType={
-                                                 engine.comfySettings.useIpAdapter && dreamState.attachments?.some(a => a.mimeType.startsWith('image/'))
-                                                    ? 'IP-Adapter'
-                                                    : dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) 
-                                                        ? 'Image-to-Image' 
-                                                        : 'Text-to-Image'
-                                             }
-                                             activeNodeId={engine.activeNodeId}
-                                             inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
-                                             outputImageUrl={dreamState.generatedImageUrl}
-                                           />
-                                           {/* Overlay for interaction hint */}
-                                           <div className="absolute top-2 right-2 opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
-                                                <span className="text-[9px] font-mono text-slate-500 bg-black/80 px-1 rounded">DRAG & ZOOM ENABLED</span>
-                                           </div>
-                                         </div>
-
-                                          <div className="space-y-1 flex-shrink-0">
-                                             <div className="flex justify-between text-[10px] font-mono uppercase text-cyan-400">
-                                                 <span>{dreamState.progressStatus}</span>
-                                                 <span>{Math.round(dreamState.progress)}%</span>
-                                             </div>
-                                             <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
-                                                 <div 
-                                                    className="h-full bg-cyan-500 transition-all duration-300 ease-out"
-                                                    style={{ width: `${dreamState.progress}%` }}
-                                                 ></div>
-                                             </div>
+                                          <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 tracking-widest uppercase flex items-center justify-between flex-shrink-0">
+                                            <span>Neural Synthesis In Progress</span>
+                                            <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                                          </h3>
+                                          
+                                          <div className="w-full flex-1 bg-black/50 rounded-lg overflow-hidden border border-white/5 relative group min-h-[300px]">
+                                            <WorkflowVisualizer
+                                              settings={engine.comfySettings}
+                                              workflowType={
+                                                  engine.comfySettings.useIpAdapter && dreamState.attachments?.some(a => a.mimeType.startsWith('image/'))
+                                                     ? 'IP-Adapter'
+                                                     : dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) 
+                                                         ? 'Image-to-Image' 
+                                                         : 'Text-to-Image'
+                                              }
+                                              activeNodeId={engine.activeNodeId}
+                                              inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
+                                              outputImageUrl={dreamState.generatedImageUrl}
+                                            />
+                                            {/* Overlay for interaction hint */}
+                                            <div className="absolute top-2 right-2 opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                                                 <span className="text-[9px] font-mono text-slate-500 bg-black/80 px-1 rounded">DRAG & ZOOM ENABLED</span>
+                                            </div>
                                           </div>
                                       </>
                                   ) : (
                                       <ResultView 
                                            imageUrl={dreamState.generatedImageUrl || ''}
-                                           title={dreamState.analysis?.title}
+                                           title={null} // Hide Title/Analysis Type
                                            prompt={dreamState.analysis?.visualPrompt || dreamState.rawText}
                                            onReset={() => {
                                                 setShowVisualizationModal(false);
-                                                // Function to reset state if needed?
                                            }}
                                       />
-                                  )}
-                             </div>
-                         }
+                                  )
+                            }
                     />
 
                         {/* Feedback Modal for Iterative Loop */}

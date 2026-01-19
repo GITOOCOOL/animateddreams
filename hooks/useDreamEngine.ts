@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { analyzeDreamGemini } from '../services/geminiService';
 import { analyzeDreamTextOllama } from '../services/ollamaService';
-import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvailableModels, getAvailableLoras } from '../services/comfyService';
+import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvailableModels, getAvailableLoras, getAvailableIPAdapters } from '../services/comfyService';
 import { saveDreamToDatabase } from '../services/storageService';
 import { DreamState, ComfySettings, VideoSettings, DreamAttachment } from '../types';
 import { useConnections } from '../contexts/ConnectionContext';
@@ -32,6 +32,7 @@ export const useDreamEngine = (
         progress: 0,
         analysisProgress: 0,
         progressStatus: 'Ready',
+        analysisStatus: 'Ready', // Init separate status
         rawText: '',
         attachments: [],
         analysis: null,
@@ -55,6 +56,7 @@ export const useDreamEngine = (
     const [isRemote, setIsRemote] = useState(false);
     const [availableModels, setAvailableModels] = useState<string[]>([]); // Comfy Models
     const [availableLoras, setAvailableLoras] = useState<string[]>([]);
+    const [availableIPAdapters, setAvailableIPAdapters] = useState<string[]>([]);
     const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]); // New: Ollama Models
     
     // Analysis Settings
@@ -73,7 +75,8 @@ export const useDreamEngine = (
         lora: 'None',
         loraStrength: 1.0,
         denoise: 0.75,
-        seed: undefined
+        seed: undefined,
+        ipAdapterModel: ''
     });
 
     const [videoSettings, setVideoSettings] = useState<VideoSettings>({
@@ -146,6 +149,13 @@ export const useDreamEngine = (
                     }
                 });
                 getAvailableLoras(comfyHost).then(loras => setAvailableLoras(loras));
+                getAvailableIPAdapters(comfyHost).then(ips => {
+                     setAvailableIPAdapters(ips);
+                     // Set default if exists and not set
+                     if (ips.length > 0) {
+                         setComfySettings(prev => ({ ...prev, ipAdapterModel: ips.find(m => m.includes('plus_sdxl_vit-h')) || ips[0] }));
+                     }
+                });
 
             } else if (!comfyOnline && isComfyConnected) {
                 // State Transition: Online -> Offline
@@ -210,15 +220,14 @@ export const useDreamEngine = (
 
         setDreamState(prev => ({
             ...prev,
-            isLoading: true,
             isAnalyzing: true, // Show analysis progress bar
             analysisProgress: 0, // Reset to 0 first
-            progress: 0, // Ensure generation bar is reset
-            progressStatus: analysisModel === 'raw' ? 'Skipping Analysis...' : `Analyzing Pattern (${analysisModel})...`,
             error: null,
-            analysis: null,
-            rawText: dreamInput, // Store raw text for saving later
-            attachments // Store attachments in state
+            // Keep previous analysis to allow concurrent rendering of old prompt
+            analysisStatus: analysisModel === 'raw' ? 'Skipping Analysis...' : `Analyzing Pattern (${analysisModel})...`,
+            // progressStatus: LEFT ALONE (Preserves generation status)
+            rawText: dreamInput,
+            attachments
         }));
         
         if (analysisModel === 'raw') {
@@ -236,13 +245,23 @@ export const useDreamEngine = (
                 ...prev,
                 analysis: dummyAnalysis,
                 analysisProgress: 100,
-                progressStatus: 'Ready for Generation'
+                analysisStatus: 'Ready for Generation',
+                isLoading: false,
+                isAnalyzing: false // <--- FIXED: Ensure analysis mode ends
             }));
             addLog("Visual Prompt Ready (Raw)");
             return;
         }
 
         addLog(`Analyzing Dream Pattern using ${analysisModel.toUpperCase()}...`);
+
+        // Start Fake Progress Ticker
+        const ticker = setInterval(() => {
+             setDreamState(prev => {
+                 if (prev.analysisProgress >= 90) return prev; // Cap at 90%
+                 return { ...prev, analysisProgress: prev.analysisProgress + 5 };
+             });
+        }, 800);
 
         try {
             let analysis;
@@ -273,20 +292,24 @@ export const useDreamEngine = (
                 addLog(`[Gemini] Analysis received.`);
             }
 
+            clearInterval(ticker); // Stop ticker
             setDreamState(prev => ({
                 ...prev,
                 analysis,
-                isAnalyzing: false, // Hide analysis progress bar
+                isAnalyzing: true, // Keep visible to show "Complete" state
                 analysisProgress: 100,
-                progressStatus: 'Analysis Complete'
+                analysisStatus: 'Analysis Complete'
             }));
             addLog("Visual Prompt Generated");            
 
         } catch (error) {
+            clearInterval(ticker); // Stop ticker
             console.error(error);
             setDreamState(prev => ({
                 ...prev,
                 isLoading: false, // Stop loading spinner
+                analysisProgress: 0,
+                isAnalyzing: false, // Hide bar on error
                 error: error instanceof Error ? error.message : 'Failed to process',
                 showFallbackConfirmation: true // Trigger fallback UI
             }));
@@ -313,7 +336,6 @@ export const useDreamEngine = (
             ...prev,
             isGeneratingImage: true,
             progress: 0, // Reset generation progress
-            analysisProgress: 0, // Hide/Reset analysis bar
             progressStatus: 'Initializing Core...',
             generatedImageUrl: undefined
         }));
@@ -335,12 +357,21 @@ export const useDreamEngine = (
                     analysisToUse.visualPrompt,
                     originalPrompt,
                     (val, max, stats) => {
-                        let status = val >= max ? 'Decoding High-Res Image...' : `Sampling ${val}/${max}`;
-                        if (stats && val > 1) {
+                        let status = `Sampling ${val}/${max}`;
+                        
+                        // Always append stats if available
+                        if (stats && (stats.itS > 0 || stats.eta > 0)) {
                             status += ` · ${stats.itS.toFixed(2)}it/s`;
                             if (stats.eta > 0) status += ` · ${stats.eta}s left`;
                         }
                         
+                        // If complete, append decoding
+                        if (val >= max) {
+                             status = `Decoding... ${stats ? `(${stats.itS.toFixed(2)}it/s)` : ''}`;
+                        }
+
+                        console.log("Progress Update:", status); // Debug log
+
                         setDreamState(prev => ({
                             ...prev,
                             progress: Math.round((val / max) * 100),
@@ -498,6 +529,7 @@ export const useDreamEngine = (
         setComfySettings,
         availableModels,
         availableLoras,
+        availableIPAdapters,
         availableOllamaModels,
         processDream,
         generateImage,

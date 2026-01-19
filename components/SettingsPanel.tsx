@@ -9,10 +9,12 @@ interface SettingsPanelProps {
   onDone: () => void;
   availableModels: string[];
   availableLoras: string[];
+  availableIPAdapters?: string[];
   inputImage?: DreamAttachment;
 }
 
 const DEFAULT_MODELS = [
+  'dreamshaper_8.safetensors',
   'juggernautXL_ragnarokBy.safetensors',
   'bigLust_v16.safetensors',
   'juggernaut_reborn.safetensors',
@@ -35,7 +37,7 @@ const SCHEDULERS = [
   'sgm_uniform',
 ];
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChange, onDone, availableModels, availableLoras, inputImage }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChange, onDone, availableModels, availableLoras, availableIPAdapters, inputImage }) => {
   const [showValidation, setShowValidation] = React.useState(false);
 
   const handleChange = (key: keyof ComfySettings, value: string | number | boolean) => {
@@ -211,8 +213,30 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                         </button>
                     </div>
                     <p className="text-[9px] text-slate-500">
-                        Uses IP-Adapter to strictly preserve face identity. Requires <span className="text-slate-400">ip-adapter-plus_sdxl_vit-h</span> model.
+                        Uses IP-Adapter to strictly preserve face identity. 
                     </p>
+                    
+                    {settings.useIpAdapter && (
+                        <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                             <label className="text-[10px] uppercase font-bold text-cyan-500 flex items-center gap-2 mb-1">
+                                IP Adapter Model
+                            </label>
+                            <select
+                                value={settings.ipAdapterModel || ""}
+                                onChange={(e) => handleChange('ipAdapterModel', e.target.value)}
+                                className="w-full bg-cyan-950/30 border border-cyan-500/30 rounded-lg p-2 text-xs text-cyan-100 outline-none focus:border-cyan-400"
+                            >
+                                <option value="" disabled>Select Adapter</option>
+                                {availableIPAdapters && availableIPAdapters.length > 0 ? (
+                                    availableIPAdapters.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))
+                                ) : (
+                                    <option disabled>No Adapters Found</option>
+                                )}
+                            </select>
+                        </div>
+                    )}
                 </div>
                 {/* Original Size Toggle */}
                 <div className="space-y-2 pt-4 border-t border-white/5">
