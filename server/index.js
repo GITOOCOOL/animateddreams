@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import dreamRoutes from './routes/dreams.js';
 import aiRoutes from './routes/ai.js';
+import engineRoutes from './routes/engines.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +40,7 @@ app.use('/storage', express.static(STORAGE_DIR));
 app.use('/api/auth', authRoutes);
 app.use('/api/db/dreams', dreamRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/engines', engineRoutes);
 
 const server = app.listen(PORT, () => {
     console.log(`AnimatedDreams Server running on port ${PORT}`);

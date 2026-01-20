@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { EngineProvider } from './contexts/EngineContext';
 import { Sparkles, Terminal, Activity, X, Image as ImageIcon, Play, Pause, RotateCcw, Mic, Square, Loader2, CheckCircle, Settings, ChevronDown } from 'lucide-react';
 import { useDreamEngine } from './hooks/useDreamEngine';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { useTranscriber } from './hooks/useTranscriber';
 import { useAppUI } from './hooks/useAppUI';
 import { useLogging } from './hooks/useLogging';
+import { useWorkflow } from './hooks/useWorkflow';
+import { useEngineManager } from './hooks/useEngineManager';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ConnectionProvider, useConnections } from './contexts/ConnectionContext';
 
 import Header from './components/layout/Header';
 import AnalysisCard from './components/shared/AnalysisCard';
+import AnalysisPanel from './components/panels/AnalysisPanel';
 import MediaPanel from './components/panels/MediaPanel';
+import VideoPanel from './components/panels/VideoPanel';
 import WorkflowVisualizer from './components/visualizers/WorkflowVisualizer';
 import SettingsPanel from './components/panels/SettingsPanel';
 import VideoSettingsPanel from './components/settings/VideoSettingsPanel';
@@ -45,6 +50,51 @@ function AppContent() {
   const ui = useAppUI();
   const logging = useLogging();
   
+  // Engine Manager
+  const engineManager = useEngineManager();
+  
+  // Selected engines for each module
+  const [selectedAnalysisEngine, setSelectedAnalysisEngine] = useState<string | null>(null);
+  const [selectedImageEngine, setSelectedImageEngine] = useState<string | null>(null);
+  const [selectedVideoEngine, setSelectedVideoEngine] = useState<string | null>(null);
+  const [selectedDictationEngine, setSelectedDictationEngine] = useState<string | null>(null);
+
+  // Validate selected engines when engines list changes (e.g. deletion)
+  useEffect(() => {
+      const validateSelection = (selectedId: string | null, type: 'analysis' | 'image' | 'video' | 'dictation', setter: (id: string | null) => void) => {
+          // If we have a selection but it's not in the list anymore
+          if (selectedId && !engineManager.engines.find(e => e.id === selectedId)) {
+              // Try to find a default engine for this type
+              const defaultEngine = engineManager.engines.find(e => e.type === type && e.isDefault);
+              // Or just the first one available
+              const firstAvailable = engineManager.engines.find(e => e.type === type);
+              
+              if (defaultEngine) {
+                  setter(defaultEngine.id);
+                  logging.addLog(`[Engine] Selection reset to default for ${type}.`);
+              } else if (firstAvailable) {
+                  setter(firstAvailable.id);
+                   logging.addLog(`[Engine] Selection reset to first available for ${type}.`);
+              } else {
+                  setter(null);
+                  logging.addLog(`[Engine] Selection cleared for ${type} (no engines found).`);
+              }
+          }
+           // If we have NO selection, try to select a default
+          if (!selectedId) {
+             const defaultEngine = engineManager.engines.find(e => e.type === type && e.isDefault);
+             if (defaultEngine) {
+                 setter(defaultEngine.id);
+             }
+          }
+      };
+
+      validateSelection(selectedAnalysisEngine, 'analysis', setSelectedAnalysisEngine);
+      validateSelection(selectedImageEngine, 'image', setSelectedImageEngine);
+      validateSelection(selectedVideoEngine, 'video', setSelectedVideoEngine);
+      validateSelection(selectedDictationEngine, 'dictation', setSelectedDictationEngine);
+  }, [engineManager.engines, selectedAnalysisEngine, selectedImageEngine, selectedVideoEngine, selectedDictationEngine, logging.addLog]);
+  
   const [dreamInput, setDreamInput] = useState('');
 
   // Attachments
@@ -70,7 +120,16 @@ function AppContent() {
   // Logging Helpers - MOVED TO useLogging HOOK
 
   // Hook Access
-  const engine = useDreamEngine(logging.addLog, logging.addOllamaLog, logging.addComfyLog, devSettings);
+  // Workflow Engine
+  const workflow = useWorkflow();
+
+  // Hook Access
+  const engine = useDreamEngine(
+        logging.addLog, logging.addOllamaLog, logging.addComfyLog, 
+        devSettings, 
+        workflow.activeImageWorkflow,
+        workflow.activeVideoWorkflow
+  );
   const { dreamState, setDreamState, generateImage, availableModels, availableLoras } = engine;
 
   // Workflow Auto-Scroll Refs
@@ -108,31 +167,36 @@ function AppContent() {
   useEffect(() => {
       if (audioBlob) {
           const transcribe = async () => {
+              const engineConfig = engineManager.engines.find(e => e.id === selectedDictationEngine);
+              // Default to local if no engine selected or 'browser' provider
+              const isLocal = !engineConfig || engineConfig.provider === 'browser' || engineConfig.id === 'browser-speech';
+              
               setIsTranscribing(true);
-              logging.addLog(`[Dictation] Processing audio via ${connections.transcriptionProvider}...`);
+              const providerName = engineConfig ? engineConfig.name : 'Browser Speech';
+              logging.addLog(`[Dictation] Processing audio via ${providerName}...`);
               
               try {
-                  if (connections.transcriptionProvider === 'local') {
+                  if (isLocal) {
                       // Local WebGPU Transcription
                       await localTranscriber.transcribe(audioBlob);
                       // Text update handled by effect below
-                  } else {
-                      // Cloud Proxy (Groq / OpenAI)
+                  } else if (engineConfig) {
+                      // Cloud Proxy (Groq / OpenAI / Custom)
                       const formData = new FormData();
                       formData.append('audio', audioBlob);
                       
                       const headers: HeadersInit = {};
-                      if (connections.transcriptionProvider === 'groq') {
+                      if (engineConfig.provider === 'groq') {
                           headers['x-whisper-host'] = 'https://api.groq.com/openai/v1/audio/transcriptions';
-                          headers['x-whisper-model'] = 'distil-whisper-large-v3-en'; // Groq specific
-                      } else if (connections.transcriptionProvider === 'openai') {
+                          headers['x-whisper-model'] = 'distil-whisper-large-v3-en'; 
+                      } else if (engineConfig.provider === 'openai') {
                          headers['x-whisper-host'] = 'https://api.openai.com/v1/audio/transcriptions';
-                      } else if (connections.transcriptionProvider === 'custom') {
-                          headers['x-whisper-host'] = connections.transcriptionUrl;
+                      } else if (engineConfig.provider === 'custom') {
+                          headers['x-whisper-host'] = engineConfig.config.url;
                       }
                       
-                      if (connections.transcriptionKey) {
-                          headers['x-api-key'] = connections.transcriptionKey;
+                      if (engineConfig.config.apiKey) {
+                          headers['x-api-key'] = engineConfig.config.apiKey;
                       }
 
                       const res = await fetch('/api/ai/transcribe', {
@@ -160,7 +224,7 @@ function AppContent() {
           };
           transcribe();
       }
-  }, [audioBlob, logging.addLog, resetAudio, connections, localTranscriber.transcribe]);
+  }, [audioBlob, logging.addLog, resetAudio, selectedDictationEngine, engineManager.engines, localTranscriber.transcribe]);
 
   // Sync Local Transcriber Text
   useEffect(() => {
@@ -193,7 +257,10 @@ function AppContent() {
 
 
   // Handlers
-  const handleAnalyze = () => engine.processDream(dreamInput, attachments);
+  const handleAnalyze = () => {
+    const config = engineManager.engines.find(e => e.id === selectedAnalysisEngine);
+    engine.processDream(dreamInput, attachments, config);
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -246,7 +313,12 @@ function AppContent() {
     // Use editablePrompt if available, otherwise fallback
     const analysisOverride = dreamState.analysis ? { ...dreamState.analysis, visualPrompt: editablePrompt } : undefined;
     
-    const url = await generateImage(dreamInput, undefined, analysisOverride);
+    const url = await generateImage(
+        dreamInput, 
+        undefined, 
+        analysisOverride,
+        engineManager.engines.find(e => e.id === selectedImageEngine)
+    );
 
     if (url && iterativeMode) {
       // In iterative mode, after generation, ask for next step
@@ -354,8 +426,16 @@ function AppContent() {
             availableModels={availableModels}
             availableLoras={availableLoras}
             availableIPAdapters={engine.availableIPAdapters}
+            availableNodeTypes={engine.availableNodeTypes}
             inputImage={attachments.find(a => a.mimeType.startsWith('image/'))}
             onDone={() => ui.setIsGenerationSettingsOpen(false)}
+            
+             // Workflow Props
+            workflowPresets={workflow.imagePresets}
+            activePresetId={workflow.activeImagePresetId}
+            onSelectPreset={workflow.loadImagePreset}
+            onImportWorkflow={workflow.importImageWorkflow}
+            initialTab={ui.activeSettingsTab}
           />
       </SettingsDialog>
 
@@ -391,24 +471,29 @@ function AppContent() {
 
       <main className="container mx-auto max-w-[1800px] px-4 py-6 flex-1 flex flex-col gap-6">
           
-          {/* Input Section */}
+          {/* Input Module */}
           <div className="flex flex-col gap-4 relative">
               <div className="relative group flex flex-col">
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col">
+                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[400px]">
                   
-
-
                   {/* Architecture Viewer Overlay */}
-      {ui.showArchitectureView && (
-          <ArchitectureViewer 
-            initialView={ui.architectureViewMode}
-            onClose={() => ui.setShowArchitectureView(false)} 
-          />
-      )}
+                  {ui.showArchitectureView && (
+                      <ArchitectureViewer 
+                        initialView={ui.architectureViewMode}
+                        onClose={() => ui.setShowArchitectureView(false)} 
+                      />
+                  )}
 
-      {/* Main Content Area */}
-                  <div className="mb-4 relative flex-1 flex flex-col min-h-[350px]">
+                  {/* Input Module Header */}
+                  <div className="flex items-center justify-between px-1 mb-4">
+                      <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 tracking-widest uppercase flex items-center gap-2">
+                          <Terminal className="w-4 h-4 text-green-400" />
+                          <span>Input Module</span>
+                      </h3>
+                  </div>
 
+                  {/* Main Content Area */}
+                  <div className="mb-4 relative flex-1 flex flex-col min-h-[300px]">
                     <textarea
                       id="dream-input"
                       value={dreamInput}
@@ -419,161 +504,112 @@ function AppContent() {
                     
                     {/* Dictation Control Bar (Absolute Bottom Right) */}
                     <DictationControl
-                        connections={connections}
-                        updateConnection={updateConnection}
                         localTranscriber={localTranscriber}
                         isRecording={isRecording}
                         isTranscribing={isTranscribing}
                         onRecordToggle={isRecording ? stopRecording : startRecording}
                         onOpenSettings={() => ui.setIsDictationSettingsOpen(true)}
+                        availableEngines={engineManager.getEnginesForModule('dictation')}
+                        selectedEngineId={selectedDictationEngine}
+                        onSelectEngine={setSelectedDictationEngine}
                     />
                   </div>
 
-                   {/* Model Selector & Status */}
-                  <div className="mb-6">
-                    <ModelSelector 
-                        currentModel={engine.analysisModel}
-                        onSelect={handleModelSelect}
-                        availability={engine.modelAvailability}
-                        isChecking={engine.isCheckingModels}
-                        onConfigure={() => ui.setIsAnalysisSettingsOpen(true)}
-                    />
+                  {/* Attachment Control */}
+                  <div className="flex items-center gap-2 px-4 py-3 bg-white/5 border-t border-white/5 rounded-xl">
+                      <button 
+                          onClick={() => startInputRef.current?.click()}
+                          className={`transition-colors flex items-center gap-2 ${attachments.length > 0 ? 'text-purple-400' : 'text-slate-500 hover:text-white'}`}
+                      >
+                          <ImageIcon className="w-5 h-5" />
+                          <span className="text-xs font-bold uppercase tracking-wider">
+                              {attachments.length > 0 ? attachments[0].file.name.slice(0, 15) : 'Attach'}
+                          </span>
+                      </button>
+                      {attachments.length > 0 && (
+                          <button onClick={clearAttachment} className="text-slate-500 hover:text-red-400">
+                              <X className="w-4 h-4" />
+                          </button>
+                      )}
+                      <input 
+                          type="file" 
+                          ref={startInputRef}
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                      />
                   </div>
-
-                  {/* Analysis Progress Bar */}
-                  {dreamState.isAnalyzing && (
-                      <div className="mb-4 px-1">
-                          <ProgressBar 
-                              progress={dreamState.analysisProgress} 
-                              label="ANALYZING TEXT PATTERNS" 
-                              statusText={dreamState.analysisStatus || 'Processing...'}
-                              color="purple"
-                          />
-                          
-                           <div className="mt-2 flex items-center justify-end">
-                                <button
-                                     onClick={engine.cancelAnalysis}
-                                     className="text-[10px] font-bold uppercase text-red-500 hover:text-red-400 flex items-center gap-1 transition-colors"
-                                >
-                                     <X className="w-3 h-3" /> Cancel Analysis
-                                </button>
-                           </div>
-
-                          {/* Live Pipeline Visualizer - Embedded on Main Screen */}
-                           <div className="mt-4 bg-[#1a1a1c] border border-white/5 rounded-xl p-4 shadow-lg shadow-purple-900/5 animate-in slide-in-from-top-2">
-                                <AnalysisPipelineVisualizer 
-                                     layers={engine.analysisPipeline.layers} 
-                                     currentLayerId={dreamState.currentLayerId}
-                                     isAnalyzing={dreamState.isAnalyzing}
-                                     finalAnalysis={dreamState.analysis}
-                                />
-                           </div>
-                      </div>
-                  )}
-
-                  <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-0 px-4 py-3 bg-white/5 border-t border-white/5 rounded-xl border-x-0 border-b-0">
-                    {/* Left: Attachment */}
-                    <div className="flex items-center gap-2 justify-center md:justify-start order-2 md:order-1">
-                        <button 
-                            onClick={() => startInputRef.current?.click()}
-                            className={`transition-colors flex items-center gap-2 ${attachments.length > 0 ? 'text-purple-400' : 'text-slate-500 hover:text-white'}`}
-                        >
-                            <ImageIcon className="w-5 h-5" />
-                            <span className="text-xs font-bold uppercase tracking-wider">
-                                {attachments.length > 0 ? attachments[0].file.name.slice(0, 15) : 'Attach'}
-                            </span>
-                        </button>
-                        {attachments.length > 0 && (
-                            <button onClick={clearAttachment} className="text-slate-500 hover:text-red-400">
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
-                        <input 
-                            type="file" 
-                            ref={startInputRef}
-                            className="hidden" 
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                        />
-                    </div>
-
-                    {/* Center: Loop Mode Toggle */}
-                    <div className="flex items-center justify-center gap-3 order-1 md:order-2">
-                        <span className={`text-[10px] uppercase font-bold transition-colors ${!iterativeMode ? 'text-white' : 'text-slate-600'}`}>Single</span>
-                         <button
-                            onClick={() => setIterativeMode(!iterativeMode)}
-                            className={`w-10 h-5 rounded-full transition-colors relative ${iterativeMode ? 'bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.4)]' : 'bg-slate-700'}`}
-                        >
-                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transform transition-transform duration-300 ${iterativeMode ? 'translate-x-5' : 'translate-x-0'}`} />
-                        </button>
-                        <span className={`text-[10px] uppercase font-bold transition-colors ${iterativeMode ? 'text-purple-400' : 'text-slate-600'}`}>Loop</span>
-                    </div>
-
-                    {/* Right: Analyze Button */}
-                    <div className="flex justify-center md:justify-end order-3">
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={dreamState.isLoading || !dreamInput.trim()}
-                            className="w-full md:w-auto bg-white text-black hover:bg-slate-200 px-8 py-2.5 rounded-xl font-bold uppercase text-xs tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-                        >
-                            {dreamState.isLoading ? <Activity className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            {dreamState.isLoading ? 'Analyzing...' : 'Analyze'}
-                        </button>
-                    </div>
-                  </div>
-                  {/* Spacer to balance height with Right Column's taller controls */}
-                  <div className="h-20 hidden lg:block" />
-              </div>
+                </div>
             </div>
-
-            {dreamState.analysis && (
-              <div ref={analysisRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
-                <AnalysisCard 
-                    analysis={dreamState.analysis} 
-                    editablePrompt={editablePrompt}
-                    onPromptChange={setEditablePrompt}
-                />
-              </div>
-            )}
-
-            {ui.showLogs && (
-              <div className="h-48 rounded-xl border border-white/10 overflow-hidden">
-                <LogConsole logs={logging.logs} isOpen={true} onClose={() => { }} embedded />
-              </div>
-            )}
           </div>
 
-          {/* Output/Media Section */}
+          {/* Prompt Analysis Module */}
+          <div className="flex flex-col gap-4 relative scroll-mt-24">
+              <div className="relative group flex flex-col">
+                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[200px]">
+                    <AnalysisPanel 
+                        analysis={dreamState.analysis}
+                        isLoading={dreamState.isAnalyzing}
+                        status={dreamState.analysisStatus}
+                        editablePrompt={editablePrompt}
+                        onPromptChange={setEditablePrompt}
+                        onAnalyze={handleAnalyze}
+                        canAnalyze={!!dreamInput.trim()}
+                        
+                        availableEngines={engineManager.getEnginesForModule('analysis')}
+                        selectedEngineId={selectedAnalysisEngine}
+                        onSelectEngine={setSelectedAnalysisEngine}
+                        
+                        onConfigureAnalysis={() => ui.setIsAnalysisSettingsOpen(true)}
+                        
+                        analysisProgress={dreamState.analysisProgress}
+                        onCancelAnalysis={engine.cancelAnalysis}
+                        analysisPipeline={engine.analysisPipeline}
+                        currentLayerId={dreamState.currentLayerId}
+                    />
+                </div>
+            </div>
+          </div>
+
+          {ui.showLogs && (
+            <div className="h-48 rounded-xl border border-white/10 overflow-hidden">
+              <LogConsole logs={logging.logs} isOpen={true} onClose={() => { }} embedded />
+            </div>
+          )}
+
+          {/* Image Generation Module */}
           <div ref={mediaRef} className="flex flex-col gap-4 relative scroll-mt-24">
               <div className="relative group flex flex-col">
                 <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[500px]">
              
-                     {/* Visual Output Modules (Always Visible) */}
+                     {/* Image Output Module */}
                      <MediaPanel
                           imageUrl={dreamState.generatedImageUrl}
-                          videoUrl={dreamState.generatedVideoUrl}
                           isGeneratingImage={dreamState.isGeneratingImage}
-                          isGeneratingVideo={dreamState.isGeneratingVideo}
                               onGenerateImage={() => {
                                   handleGenerate();
-                                  // Auto-close settings if open (optional, but Master modal usually stays or user closes it)
                                   ui.setIsSystemSettingsOpen(false);
                               }}
-                          onGenerateVideo={() => engine.generateVideo(editablePrompt)}
                           hasAnalysis={!!dreamState.analysis}
-                          videoEnabled={true}
-                          onSelectKey={() => { }}
                           onCancel={engine.cancelRender}
 
-                          onOpenSettings={() => ui.setIsGenerationSettingsOpen(true)}
+                          availableEngines={engineManager.getEnginesForModule('image')}
+                          selectedEngineId={selectedImageEngine}
+                          onSelectEngine={setSelectedImageEngine}
+
+                          onOpenSettings={() => {
+                              ui.setActiveSettingsTab('gen');
+                              ui.setIsGenerationSettingsOpen(true);
+                          }}
+                          onOpenWorkflowSettings={() => {
+                              ui.setActiveSettingsTab('workflow');
+                              ui.setIsGenerationSettingsOpen(true);
+                          }}
                           onShowWorkflow={() => ui.setShowVisualizationModal(true)}
                           isModelSelected={!!engine.comfySettings.model}
-                          // settingsContent removed to use global dialog
-                          onOpenVideoSettings={() => ui.setIsVideoSettingsOpen(true)}
                           availableModels={availableModels}
 
                           currentModel={engine.comfySettings.model || ''}
-                          currentVideoModel={engine.videoSettings.model}
                           onModelSelect={(m) => engine.setComfySettings(prev => ({ ...prev, model: m }))}
                           isComfyConnected={engine.isComfyConnected}
                           progress={dreamState.progress}
@@ -598,7 +634,7 @@ function AppContent() {
                                                          : 'Text-to-Image'
                                               }
                                               activeNodeId={engine.activeNodeId}
-                                              dynamicWorkflow={engine.activeWorkflow} 
+                                              dynamicWorkflow={engine.activeImageWorkflow} 
                                               inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
                                               outputImageUrl={dreamState.generatedImageUrl}
                                             />
@@ -620,9 +656,37 @@ function AppContent() {
                                   )
                             }
                     />
+                </div>
+            </div>
+          </div>
 
-                        {/* Feedback Modal for Iterative Loop */}
-                        {showFeedbackModal && (
+          {/* Video Generation Module */}
+          <div className="flex flex-col gap-4 relative scroll-mt-24">
+              <div className="relative group flex flex-col">
+                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[500px]">
+                    <VideoPanel
+                        videoUrl={dreamState.generatedVideoUrl}
+                        isGeneratingVideo={dreamState.isGeneratingVideo}
+                        onGenerateVideo={() => engine.generateVideo(
+                            editablePrompt,
+                            engineManager.engines.find(e => e.id === selectedVideoEngine)
+                        )}
+                        videoEnabled={true}
+                        onSelectKey={() => { }}
+                        currentVideoModel={engine.videoSettings.model}
+                        onOpenVideoSettings={() => ui.setIsVideoSettingsOpen(true)}
+                        hasAnalysis={!!dreamState.analysis}
+                        
+                        availableEngines={engineManager.getEnginesForModule('video')}
+                        selectedEngineId={selectedVideoEngine}
+                        onSelectEngine={setSelectedVideoEngine}
+                    />
+                </div>
+            </div>
+          </div>
+
+          {/* Feedback Modal for Iterative Loop */}
+          {showFeedbackModal && (
                            <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
                             <div className="bg-[#1a1a1c] border border-purple-500/30 p-8 rounded-2xl max-w-lg w-full shadow-[0_0_50px_rgba(168,85,247,0.2)] animate-in zoom-in-95">
                               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -660,9 +724,6 @@ function AppContent() {
                             </div>
                           </div>
                         )}
-                </div>{/* End Card Inner */}
-            </div>{/* End Card Wrapper */}
-          </div>
         </main>
 
       <Gallery isOpen={ui.isGalleryOpen} onClose={() => ui.setIsGalleryOpen(false)} />
@@ -686,7 +747,9 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ConnectionProvider>
-          <AppContent />
+          <EngineProvider>
+             <AppContent />
+          </EngineProvider>
         </ConnectionProvider>
       </AuthProvider>
     </ErrorBoundary>

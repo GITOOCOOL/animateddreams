@@ -1,13 +1,8 @@
 import React from 'react';
-import { Settings, Mic, Square, Loader2, ChevronDown } from 'lucide-react';
+import { Settings, Mic, Square, Loader2 } from 'lucide-react';
+import EngineSelector from './EngineSelector';
 
 interface DictationControlProps {
-    connections: {
-        transcriptionProvider: string;
-        transcriptionKey: string;
-        [key: string]: any;
-    };
-    updateConnection: (key: string, value: any) => void;
     localTranscriber: {
         isModelLoading: boolean;
         progress: number;
@@ -16,50 +11,48 @@ interface DictationControlProps {
     isTranscribing: boolean;
     onRecordToggle: () => void;
     onOpenSettings: () => void;
+    
+    // Engine Selection
+    availableEngines?: Array<{
+        id: string;
+        name: string;
+        type: 'analysis' | 'image' | 'video' | 'dictation';
+        isAvailable: boolean;
+        isConfigured: boolean;
+    }>;
+    selectedEngineId?: string | null;
+    onSelectEngine?: (engineId: string) => void;
 }
 
 export const DictationControl: React.FC<DictationControlProps> = ({
-    connections,
-    updateConnection,
     localTranscriber,
     isRecording,
     isTranscribing,
     onRecordToggle,
-    onOpenSettings
+    onOpenSettings,
+    availableEngines = [],
+    selectedEngineId,
+    onSelectEngine
 }) => {
     return (
         <div className="absolute bottom-2 right-2 lg:bottom-4 lg:right-4 flex flex-row items-center gap-2 lg:gap-2 bg-black/80 backdrop-blur-sm border border-white/10 rounded-xl p-2 lg:p-1.5 shadow-xl z-20 max-w-[calc(100%-1rem)]">
             
             {/* Status + Selector Group */}
             <div className="flex items-center gap-2">
-                 {/* Status Dot */}
-                <div 
-                    className={`w-4 h-4 lg:w-2 lg:h-2 rounded-full flex-shrink-0
-                        ${connections.transcriptionProvider === 'local' 
-                            ? (localTranscriber.isModelLoading ? 'bg-yellow-400 animate-pulse' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]')
-                            : (connections.transcriptionKey ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]')
-                        }
-                    `}
-                    title={
-                        connections.transcriptionProvider === 'local' 
-                            ? (localTranscriber.isModelLoading ? 'Model Downloading...' : 'Local Model Ready')
-                            : (connections.transcriptionKey ? 'API Key Set' : 'Missing API Key')
-                    }
-                />
-
-                {/* Provider Selector */}
+                 {/* Provider Selector */}
                 <div className="relative group flex-shrink-0 min-w-0">
-                    <select
-                        value={connections.transcriptionProvider}
-                        onChange={(e) => updateConnection('transcriptionProvider', e.target.value)}
-                        className="appearance-none bg-transparent text-[10px] lg:text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white focus:outline-none pr-3 lg:pr-4 cursor-pointer text-left w-full max-w-[80px] lg:max-w-none truncate"
-                    >
-                        <option value="local" className="bg-slate-900 text-slate-300">WebGPU</option>
-                        <option value="custom" className="bg-slate-900 text-slate-300">Custom</option>
-                        <option value="groq" className="bg-slate-900 text-slate-300">Groq</option>
-                        <option value="openai" className="bg-slate-900 text-slate-300">OpenAI</option>
-                    </select>
-                    <ChevronDown className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-slate-500 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white" />
+                    {availableEngines.length > 0 && onSelectEngine ? (
+                        <div className="scale-90 origin-left">
+                            <EngineSelector
+                                engines={availableEngines}
+                                selectedEngineId={selectedEngineId || null}
+                                onSelectEngine={onSelectEngine}
+                                moduleType="dictation"
+                            />
+                        </div>
+                    ) : (
+                        <span className="text-[10px] text-red-500 font-mono px-2">Offline</span>
+                    )}
                 </div>
             </div>
 
@@ -80,18 +73,18 @@ export const DictationControl: React.FC<DictationControlProps> = ({
                 {/* Dictate Button */}
                 <button
                     onClick={onRecordToggle}
-                    disabled={isTranscribing || (connections.transcriptionProvider !== 'local' && !connections.transcriptionKey)}
+                    disabled={isTranscribing}
                     className={`flex items-center justify-center gap-1.5 lg:gap-2 px-3 lg:px-3 lg:py-1.5 rounded-lg text-[10px] lg:text-[10px] font-bold uppercase tracking-wider transition-all flex-shrink-0 w-auto
                         ${isRecording 
                             ? 'text-red-500 shadow-none lg:bg-red-500 lg:text-white lg:shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse' 
                             : 'bg-white/10 text-slate-300 hover:text-white lg:bg-white/10'}
-                        ${isTranscribing || (connections.transcriptionProvider !== 'local' && !connections.transcriptionKey) ? 'opacity-50 cursor-not-allowed' : ''}
+                        ${isTranscribing ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
                 >
                     {isTranscribing ? (
                         <div className="flex items-center gap-2">
                             <Loader2 className="w-4 h-4 lg:w-3 lg:h-3 animate-spin" />
-                            {localTranscriber.isModelLoading && (
+                            {localTranscriber?.isModelLoading && (
                                 <span className="text-[9px] opacity-75 hidden lg:inline">{Math.round(localTranscriber.progress)}%</span>
                             )}
                         </div>
@@ -102,7 +95,7 @@ export const DictationControl: React.FC<DictationControlProps> = ({
                     )}
                     <span className="inline">
                         {isTranscribing 
-                            ? (localTranscriber.isModelLoading ? 'Loading' : 'Processing') 
+                            ? (localTranscriber?.isModelLoading ? 'Loading' : 'Processing') 
                             : (isRecording ? 'Stop' : 'Dictate')}
                     </span>
                 </button>

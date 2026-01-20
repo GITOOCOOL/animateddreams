@@ -18,6 +18,7 @@ export function useAppUI() {
   const [showVisualizationModal, setShowVisualizationModal] = useState(false);
   const [showArchitectureView, setShowArchitectureView] = useState(false);
   const [architectureViewMode, setArchitectureViewMode] = useState<ArchitectureViewMode>('client');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'gen' | 'workflow' | 'system'>('gen');
 
   // Architecture Viewer Global Toggler
   useEffect(() => {
@@ -39,6 +40,9 @@ export function useAppUI() {
     showLogs, setShowLogs,
     showVisualizationModal, setShowVisualizationModal,
     showArchitectureView, setShowArchitectureView,
-    architectureViewMode, setArchitectureViewMode
+    architectureViewMode, setArchitectureViewMode,
+    
+    // Config Tabs
+    activeSettingsTab, setActiveSettingsTab
   };
 }

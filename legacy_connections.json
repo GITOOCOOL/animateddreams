@@ -1,0 +1,10 @@
+{
+  "note": "Legacy connection settings backup - created 2026-01-20",
+  "connections": {
+    "ollamaHost": "http://localhost:11434",
+    "comfyHost": "http://127.0.0.1:8188",
+    "runpodServerId": "",
+    "runpodApiKey": ""
+  },
+  "timestamp": "2026-01-20T06:25:45.710Z"
+}

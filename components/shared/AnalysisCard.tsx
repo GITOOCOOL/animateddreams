@@ -60,7 +60,7 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ analysis, editablePrompt, o
                   key={idx}
                   className="px-2 py-1 bg-pink-900/20 border border-pink-500/40 text-pink-300 text-xs font-mono uppercase hover:bg-pink-500/20 transition-colors cursor-default"
                 >
-                  #{symbol}
+                  #{typeof symbol === 'object' ? JSON.stringify(symbol).slice(0, 20) : symbol}
                 </span>
               ))}
             </div>

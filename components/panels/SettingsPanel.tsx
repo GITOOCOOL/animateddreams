@@ -1,7 +1,9 @@
 import React from 'react';
 import { Settings, Sliders, Activity, Zap, Layers, Image as ImageIcon, Box, X } from 'lucide-react';
-import { ComfySettings, DreamAttachment } from '../../types';
+import { ComfySettings, DreamAttachment, WorkflowPreset } from '../../types';
 import WorkflowVisualizer from '../visualizers/WorkflowVisualizer';
+import WorkflowSettingsPanel from '../settings/WorkflowSettingsPanel';
+import SystemSettingsPanel from '../settings/SystemSettingsPanel';
 
 interface SettingsPanelProps {
   settings: ComfySettings;
@@ -12,6 +14,13 @@ interface SettingsPanelProps {
   availableIPAdapters?: string[];
   availableNodeTypes?: string[]; // Discovery
   inputImage?: DreamAttachment;
+  
+  // Workflow Props
+  workflowPresets?: WorkflowPreset[];
+  activePresetId?: string;
+  onSelectPreset?: (id: string) => void;
+  onImportWorkflow?: (json: any, name: string) => void;
+  initialTab?: 'gen' | 'workflow' | 'system';
 }
 
 const DEFAULT_MODELS = [
@@ -38,7 +47,13 @@ const SCHEDULERS = [
   'sgm_uniform',
 ];
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChange, onDone, availableModels, availableLoras, availableIPAdapters, availableNodeTypes, inputImage }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ 
+    settings, onSettingsChange, onDone, availableModels, availableLoras, 
+    availableIPAdapters, availableNodeTypes, inputImage,
+    workflowPresets, activePresetId, onSelectPreset, onImportWorkflow,
+    initialTab = 'gen'
+}) => {
+  const [activeTab, setActiveTab] = React.useState<'gen' | 'workflow' | 'system'>(initialTab);
   const [showValidation, setShowValidation] = React.useState(false);
 
   const handleChange = (key: keyof ComfySettings, value: string | number | boolean) => {
@@ -56,21 +71,54 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
     if (key === 'model' && value) setShowValidation(false);
   };
 
-  const handleDone = () => {
-    if (!settings.model) {
-        setShowValidation(true);
-        // Shake animation effect could be added here or via CSS class
-        return;
-    }
-    onDone();
-  };
-
   const modelOptions = (availableModels && availableModels.length > 0) ? availableModels : DEFAULT_MODELS;
   
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col pr-2">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col pr-2">
+        
+        {/* Helper Navigation */}
+        <div className="flex bg-black/40 p-1 rounded-lg border border-white/5 shrink-0">
+             <button 
+                onClick={() => setActiveTab('gen')}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'gen' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+             >
+                 <Sliders className="w-3 h-3" /> Generator
+             </button>
+             <button 
+                onClick={() => setActiveTab('workflow')}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'workflow' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+             >
+                 <Layers className="w-3 h-3" /> Workflow
+             </button>
+             <button 
+                onClick={() => setActiveTab('system')}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'system' ? 'bg-slate-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+             >
+                 <Settings className="w-3 h-3" /> System
+             </button>
+        </div>
 
-        <div className="space-y-8 flex-1 overflow-y-auto custom-scrollbar pr-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+            
+            {activeTab === 'system' && <SystemSettingsPanel />}
+
+            {activeTab === 'workflow' && (
+                workflowPresets && activePresetId && onSelectPreset && onImportWorkflow ? (
+                    <WorkflowSettingsPanel 
+                        presets={workflowPresets}
+                        activePresetId={activePresetId}
+                        onSelectPreset={onSelectPreset}
+                        onImport={onImportWorkflow}
+                    />
+                ) : (
+                    <div className="text-center p-10 text-slate-500">
+                        Workflow Engine initialization failed.
+                    </div>
+                )
+            )}
+
+            {activeTab === 'gen' && (
+            <div className="space-y-8 contents">
             
             {/* Model & Architecture */}
             <div className="space-y-4">
@@ -227,7 +275,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                      </div>
                 </div>
 
-                {/* Denoise (Image-to-Image) */}
+                {/* Denoise */}
                 <div className="space-y-2 pt-2 border-t border-white/5">
                     <label className="text-[10px] uppercase font-bold text-pink-500 flex justify-between">
                          <span>Denoise (Img2Img)</span> <span className="text-white">{settings.denoise}</span>
@@ -279,7 +327,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                                 )}
                             </select>
 
-                            {/* Preset Selector (Hidden if specific model is manually selected, to avoid confusion) */}
+                            {/* Preset Selector */}
                             {(!settings.ipAdapterModel) && (() => {
                                    const isSdxl = settings.model?.toLowerCase().includes("sdxl") || settings.model?.toLowerCase().includes("ragnarok");
                                    const isPresetMismatch = isSdxl && (settings.ipAdapterPreset?.includes("STANDARD") || settings.ipAdapterPreset?.includes("LIGHT"));
@@ -314,15 +362,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                                                     <option key={p} value={p}>{p}</option>
                                                 ))}
                                             </select>
-                                            {isPresetMismatch ? (
-                                                <p className="text-[9px] text-red-400 font-bold">
-                                                    Warning: Selected preset requires SD1.5. Use 'STANDARD / SDXL'.
-                                                </p>
-                                            ) : (
-                                                <p className="text-[9px] text-slate-500 italic">
-                                                    'STANDARD' works for most SDXL models (uses ViT-H).
-                                                </p>
-                                            )}
                                        </div>
                                    );
                                })()}
@@ -352,13 +391,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                             <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transform transition-transform duration-300 ${settings.useOriginalDimensions ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                     </div>
-                    <p className="text-[9px] text-slate-500">
-                        Bypasses auto-resizing. Use strict input dimensions (Caution: May cause stripes if not SDXL-friendly).
-                    </p>
                 </div>
             </div>
-
-
 
             {/* Output Dims */}
             <div className="space-y-4">
@@ -388,87 +422,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSettingsChang
                     </div>
                  </div>
             </div>
-
-            {/* Custom Workflow Modules (Expert) */}
-            <div className="space-y-4 pt-4 border-t border-white/5">
-                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                     <span>Custom Modules (Expert)</span>
-                     <span className="text-[9px] bg-slate-800 text-slate-400 px-1 rounded">BETA</span>
-                 </h4>
-                 
-                 <div className="space-y-3">
-                     {/* Add Node Control */}
-                     <div className="flex gap-2">
-                        <input 
-                            list="node-types" 
-                            placeholder="Type node class name..."
-                            className="bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-slate-300 w-full outline-none focus:border-purple-500"
-                            id="node-search"
-                        />
-                        <datalist id="node-types">
-                            {availableNodeTypes?.map(type => <option key={type} value={type} />)}
-                        </datalist>
-                        <button 
-                            onClick={() => {
-                                const input = document.getElementById('node-search') as HTMLInputElement;
-                                const type = input.value;
-                                if (type) {
-                                    const newNodes = [...(settings.customNodes || [])];
-                                    // Generate ID starting from 500
-                                    const id = (500 + newNodes.length).toString(); 
-                                    newNodes.push({ type, id, inputs: {} });
-                                    onSettingsChange({ ...settings, customNodes: newNodes });
-                                    input.value = '';
-                                }
-                            }}
-                            className="bg-purple-600 hover:bg-purple-500 text-white px-3 rounded-lg text-xs font-bold"
-                        >
-                            ADD
-                        </button>
-                     </div>
-
-                     {/* List of Added Nodes */}
-                     {settings.customNodes?.map((node, index) => (
-                         <div key={node.id} className="bg-white/5 p-3 rounded-lg border border-white/5 relative group">
-                             <div className="flex justify-between items-center mb-2">
-                                 <span className="text-[10px] font-bold text-cyan-400">{node.type} <span className="text-slate-500">#{node.id}</span></span>
-                                 <button 
-                                    onClick={() => {
-                                        const newNodes = settings.customNodes!.filter(n => n.id !== node.id);
-                                        onSettingsChange({ ...settings, customNodes: newNodes });
-                                    }}
-                                    className="text-slate-600 hover:text-red-500"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                             </div>
-                             <textarea
-                                placeholder='JSON Params e.g. {"value": 1.0, "text": "foo"}'
-                                className="w-full bg-black/30 text-[10px] font-mono p-2 rounded border border-white/5 outline-none focus:border-cyan-500 text-slate-300 min-h-[60px]"
-                                defaultValue={JSON.stringify(node.inputs || {}, null, 2)}
-                                onBlur={(e) => {
-                                    try {
-                                        const parsed = JSON.parse(e.target.value);
-                                        const newNodes = [...settings.customNodes!];
-                                        newNodes[index].inputs = parsed;
-                                        onSettingsChange({ ...settings, customNodes: newNodes });
-                                    } catch (err) {
-                                        // Ignore invalid JSON for now or show error border
-                                        e.target.style.borderColor = 'red';
-                                    }
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = ''}
-                             />
-                         </div>
-                     ))}
-                 </div>
+            
+            {/* End of Gen Tab */}
             </div>
+            )}
+            
         </div>
-        
-
-        
-        {/* Done Button */}
-
     </div>
   );
 };

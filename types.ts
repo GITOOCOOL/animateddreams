@@ -37,6 +37,24 @@ export interface ComfySettings {
   customNodes?: { type: string; id: string; inputs: Record<string, any> }[];
 }
 
+export interface WorkflowPreset {
+  id: string;
+  name: string;
+  description: string;
+  workflow: Record<string, any>; // The ComfyUI JSON graph
+  type: 'image' | 'video';
+  version: string;
+  // Optional mapping to help the engine find nodes if auto-detection fails
+  nodeMapping?: {
+     ksampler?: string;
+     checkpoint?: string;
+     positive?: string;
+     negative?: string;
+     image_input?: string;
+     output?: string;
+  };
+}
+
 export interface AgentConfig {
   model: string;
   temperature: number;

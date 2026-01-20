@@ -4,6 +4,7 @@ import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvaila
 import { saveDreamToDatabase } from '../services/storageService';
 import { DreamState, ComfySettings, VideoSettings, DreamAttachment } from '../types';
 import { useConnections } from '../contexts/ConnectionContext';
+import { EngineConfig } from './useEngineManager';
 
 // Polyfill for crypto.randomUUID in insecure contexts (HTTP LAN)
 const generateUUID = () => {
@@ -16,12 +17,18 @@ const generateUUID = () => {
     );
 };
 
+
+
 export const useDreamEngine = (
     addLog: (msg: string) => void, 
     addOllamaLog: (msg: string) => void, 
     addComfyLog: (msg: string) => void, 
-    devSettings = { mockAnalysis: false, mockGeneration: false }
+
+    devSettings = { mockAnalysis: false, mockGeneration: false },
+    activeImageWorkflow: Record<string, any> | null = null,
+    activeVideoWorkflow: Record<string, any> | null = null
 ) => {
+
     const { connections } = useConnections();
     const comfyHost = connections.runpodServerId 
         ? `https://${connections.runpodServerId}-8188.proxy.runpod.net` 
@@ -63,7 +70,7 @@ export const useDreamEngine = (
     const [analysisModel, setAnalysisModel] = useState<'gemini' | 'ollama' | 'raw' | null>(null);
 
     // Active Workflow State (for Visualization)
-    const [activeWorkflow, setActiveWorkflow] = useState<any>(null);
+
 
     // Comfy Settings State
     const [comfySettings, setComfySettings] = useState<ComfySettings>({
@@ -240,7 +247,7 @@ export const useDreamEngine = (
         return () => clearInterval(intervalId);
     }, [addLog, comfyHost, connections.ollamaHost, isComfyConnected, modelAvailability.ollama, availableModels.length]);
 
-    const processDream = async (dreamInput: string, attachments: DreamAttachment[] = []) => {
+    const processDream = async (dreamInput: string, attachments: DreamAttachment[] = [], engineConfig?: EngineConfig) => {
         if (!dreamInput.trim()) return;
 
         // Check for RAW bypass
@@ -469,7 +476,7 @@ export const useDreamEngine = (
         }
     }, [addLog]);
 
-    const generateImage = async (originalPrompt: string, inputImage?: File, analysisOverride?: any) => {
+    const generateImage = async (originalPrompt: string, inputImage?: File, analysisOverride?: any, engineConfig?: EngineConfig) => {
         const analysisToUse = analysisOverride || dreamState.analysis;
         if (!analysisToUse) return;
         
@@ -528,8 +535,9 @@ export const useDreamEngine = (
                     (nodeId) => setActiveNodeId(nodeId),
                     inputImage || dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.file,
                     comfySettings,
-                    addComfyLog, // <--- CORRECT LOGGER
-                    comfyHost
+                    addComfyLog,
+                    comfyHost,
+                    activeImageWorkflow || undefined
                 );
             }
 
@@ -581,7 +589,7 @@ export const useDreamEngine = (
         }
     };
 
-    const generateVideo = async (promptOverride?: string) => {
+    const generateVideo = async (promptOverride?: string, engineConfig?: EngineConfig) => {
         const isAnimateDiff = videoSettings.model?.toLowerCase().includes('animate') || videoSettings.model?.toLowerCase().includes('motion');
         
         if (!dreamState.generatedImageUrl && !isAnimateDiff) {
@@ -606,7 +614,7 @@ export const useDreamEngine = (
                  addLog("[MOCK] Video generated.");
             } else {
                  videoUrl = await generateComfyVideo(
-                     dreamState.generatedImageUrl,
+                     promptOverride || dreamState.analysis?.visualPrompt || dreamState.rawText || "A cinematic video",
                      videoSettings,
                      (val, max) => {
                         setDreamState(prev => ({
@@ -615,11 +623,11 @@ export const useDreamEngine = (
                             progressStatus: `Rendering Frame ${val}/${max}`
                         }));
                      },
+                     (nodeId) => setActiveNodeId(nodeId),
+                     undefined, // TODO: Pass File for SVD if available
+                     activeVideoWorkflow || undefined,
                      addLog,
-                     comfyHost,
-                     promptOverride || dreamState.analysis?.visualPrompt || dreamState.rawText || "A cinematic video",
-                     (nodeId) => setActiveNodeId(nodeId), // Active Node Tracking
-                     (workflow) => setActiveWorkflow(workflow) // Workflow Structure Capture
+                     comfyHost
                  );
             }
 
@@ -723,7 +731,9 @@ export const useDreamEngine = (
         dreamState,
         setDreamState,
         activeNodeId,
-        activeWorkflow,
+        // activeWorkflow removed
+        activeImageWorkflow,
+        activeVideoWorkflow,
         isComfyConnected,
         isRemote,
         comfySettings,
