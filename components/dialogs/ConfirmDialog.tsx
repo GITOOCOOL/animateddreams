@@ -1,5 +1,6 @@
 import React from 'react';
-import { ComfySettings } from '../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { ComfySettings } from '../../types';
 import { Play, X, AlertTriangle, Layers, Activity, Zap, Image as ImageIcon } from 'lucide-react';
 
 interface ConfirmDialogProps {

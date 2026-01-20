@@ -1,5 +1,5 @@
 import React from 'react';
-import { ComfySettings } from '../types';
+import { ComfySettings } from '../../types';
 import { Database, Image as ImageIcon, Zap, Cpu, Layers, Box, ArrowRight, Download, Activity, Video } from 'lucide-react';
 
 interface WorkflowVisualizerProps {
@@ -266,13 +266,13 @@ const WorkflowVisualizer: React.FC<WorkflowVisualizerProps> = ({ settings, workf
                       <span className="text-[8px] text-slate-500 truncate max-w-[100px]">{settings.model}</span>
                    </div>
     
-                   {settings.lora && settings.lora !== 'None' && (
+                   {/* Legacy LoRA check removed */}{settings.loras && settings.loras.length > 0 && (
                       <>
                          <Connection vertical />
                          <div className={getNodeStyle("100")}>
                             <Zap className="w-6 h-6 text-yellow-400" />
                             <span className="text-[10px] font-mono uppercase font-bold">LoRA</span>
-                            <span className="text-[8px] text-slate-500 truncate max-w-[100px]">{settings.lora}</span>
+                            <span className="text-[8px] text-slate-500 truncate max-w-[100px]">{settings.loras.map(l => l.name).join(', ')}</span>
                          </div>
                       </>
                    )}

@@ -1,8 +1,8 @@
 import React from 'react';
 import { Network, Activity, RefreshCw, Check, X, AlertTriangle, Mic, Box } from 'lucide-react';
-import { useConnections } from '../contexts/ConnectionContext';
-import { checkComfyConnection } from '../services/comfyService';
-import { checkOllamaConnection } from '../services/ollamaService';
+import { useConnections } from '../../contexts/ConnectionContext';
+import { checkComfyConnection } from '../../services/comfyService';
+import { checkOllamaConnection } from '../../services/ollamaService';
 import DictationSettingsPanel from './DictationSettingsPanel';
 
 const SystemSettingsPanel: React.FC = () => {

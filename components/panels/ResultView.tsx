@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, Share2, Maximize2, RotateCcw, X, ZoomIn, ZoomOut, Move } from 'lucide-react';
-import { ImageViewer } from './ImageViewer';
+import { ImageViewer } from '../media/ImageViewer';
 
 interface ResultViewProps {
   imageUrl: string;

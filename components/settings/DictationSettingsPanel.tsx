@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mic } from 'lucide-react';
-import { useConnections } from '../contexts/ConnectionContext';
+import { useConnections } from '../../contexts/ConnectionContext';
 
 const DictationSettingsPanel: React.FC = () => {
     const { connections, updateConnection } = useConnections();

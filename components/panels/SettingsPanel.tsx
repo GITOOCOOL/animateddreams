@@ -1,7 +1,7 @@
 import React from 'react';
 import { Settings, Sliders, Activity, Zap, Layers, Image as ImageIcon, Box, X } from 'lucide-react';
-import { ComfySettings, DreamAttachment } from '../types';
-import WorkflowVisualizer from './WorkflowVisualizer';
+import { ComfySettings, DreamAttachment } from '../../types';
+import WorkflowVisualizer from '../visualizers/WorkflowVisualizer';
 
 interface SettingsPanelProps {
   settings: ComfySettings;

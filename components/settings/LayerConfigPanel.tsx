@@ -16,8 +16,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Plus, Sparkles, Brain, Bot, FileText, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
-import { AnalysisLayer, AgentConfig } from '../types';
-import { LAYER_PRESETS } from '../constants/presets';
+import { AnalysisLayer, AgentConfig } from '../../types';
+import { LAYER_PRESETS } from '../../constants/presets';
 
 interface LayerConfigPanelProps {
   layers: AnalysisLayer[];

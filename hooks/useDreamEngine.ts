@@ -73,11 +73,10 @@ export const useDreamEngine = (
         scheduler: 'normal',
         width: 1344,
         height: 768,
-        batchSize: 1,
+
         model: '', // User must select
         loras: [], // Multi-LoRA Support
-        lora: 'None', // Legacy: Keep for now until full migration
-        loraStrength: 1.0,
+
         denoise: 0.75,
         seed: undefined,
         ipAdapterModel: ''

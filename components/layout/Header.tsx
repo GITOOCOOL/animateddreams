@@ -1,7 +1,7 @@
 import React from 'react'; 
 import { Sparkles, Terminal, LogOut, RefreshCw, Wrench, Settings, Image, Box } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import DeveloperTools from '../DeveloperTools';
+import DeveloperTools from '../panels/DeveloperTools';
 import { useConnections } from '../../contexts/ConnectionContext';
 
 interface HeaderProps {
@@ -11,7 +11,11 @@ interface HeaderProps {
     onReset: () => void;
     onOpenGallery: () => void;
     showDevTools: boolean;
-    logs: string[];
+    logs: {
+        system: string[];
+        ollama: string[];
+        comfy: string[];
+    };
     devSettings: {
         mockAnalysis: boolean;
         mockGeneration: boolean;

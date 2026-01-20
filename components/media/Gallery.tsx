@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { getSavedDreams, SavedDream } from '../services/storageService';
+import { getSavedDreams, SavedDream } from '../../services/storageService';
 import { Calendar, AlignLeft, Eye, ImageIcon, X } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { ResultView } from './ResultView';
+import { useAuth } from '../../contexts/AuthContext';
+import { ResultView } from '../panels/ResultView';
 
 interface GalleryProps {
     isOpen: boolean;
@@ -73,7 +73,8 @@ const Gallery: React.FC<GalleryProps> = ({ isOpen, onClose }) => {
                                         imageUrl={dream.media[0].filePath}
                                         title={dream.analysis.title}
                                         prompt={dream.analysis.visualPrompt || dream.rawText}
-                                        mode="card"
+
+                                        onReset={() => {}}
                                         // No onClose implies it handles its own internal fullscreen
                                         // But wait, Gallery used to open a big complex modal with details..
                                         // The user said: "when i click ... it should open in a full screen modal where every other picture cards are not visible , and the full screen modal be exactly same like that of the rendered output full screen modal"

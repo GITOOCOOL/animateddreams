@@ -3,68 +3,49 @@ import { Sparkles, Terminal, Activity, X, Image as ImageIcon, Play, Pause, Rotat
 import { useDreamEngine } from './hooks/useDreamEngine';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { useTranscriber } from './hooks/useTranscriber';
+import { useAppUI } from './hooks/useAppUI';
+import { useLogging } from './hooks/useLogging';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ConnectionProvider, useConnections } from './contexts/ConnectionContext';
 
 import Header from './components/layout/Header';
-import AnalysisCard from './components/AnalysisCard';
-import MediaPanel from './components/MediaPanel';
-import WorkflowVisualizer from './components/WorkflowVisualizer';
-import SettingsPanel from './components/SettingsPanel';
-import VideoSettingsPanel from './components/VideoSettingsPanel';
-import AnalysisPipelineVisualizer from './components/AnalysisPipelineVisualizer';
-import Gallery from './components/Gallery';
-import LogConsole from './components/LogConsole';
-import DeveloperTools from './components/DeveloperTools';
-import SettingsDialog from './components/SettingsDialog';
+import AnalysisCard from './components/shared/AnalysisCard';
+import MediaPanel from './components/panels/MediaPanel';
+import WorkflowVisualizer from './components/visualizers/WorkflowVisualizer';
+import SettingsPanel from './components/panels/SettingsPanel';
+import VideoSettingsPanel from './components/settings/VideoSettingsPanel';
+import AnalysisPipelineVisualizer from './components/visualizers/AnalysisPipelineVisualizer';
+import Gallery from './components/media/Gallery';
+import LogConsole from './components/shared/LogConsole';
+import DeveloperTools from './components/panels/DeveloperTools';
+import SettingsDialog from './components/dialogs/SettingsDialog';
 
-import SystemSettingsPanel from './components/SystemSettingsPanel';
-import AgentSettingsPanel from './components/AgentSettingsPanel'; // New Dual Agent Panel
-import ModelSelector from './components/ModelSelector';
+import SystemSettingsPanel from './components/settings/SystemSettingsPanel';
+import AgentSettingsPanel from './components/settings/AgentSettingsPanel'; // New Dual Agent Panel
+import ModelSelector from './components/shared/ModelSelector';
 
 
-import ProgressBar from './components/ProgressBar';
-import LoginDialog from './components/LoginDialog';
+import ProgressBar from './components/shared/ProgressBar';
+import LoginDialog from './components/dialogs/LoginDialog';
 import { analyzeDreamGemini } from './services/geminiService';
-import { DictationControl } from './components/DictationControl';
-import DictationSettingsPanel from './components/DictationSettingsPanel';
-import { FallbackDialog } from './components/FallbackDialog';
-import { ResultView } from './components/ResultView';
+import { DictationControl } from './components/shared/DictationControl';
+import DictationSettingsPanel from './components/settings/DictationSettingsPanel';
+import { FallbackDialog } from './components/dialogs/FallbackDialog';
+import { ResultView } from './components/panels/ResultView';
 
 
-import { ArchitectureViewer } from './components/ArchitectureViewer';
+import { ArchitectureViewer } from './components/visualizers/ArchitectureViewer';
 
 function AppContent() {
   const { user } = useAuth();
   const { connections, updateConnection } = useConnections();
   const localTranscriber = useTranscriber();
-  const [showLogin, setShowLogin] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]); // System Logs
-  const [ollamaLogs, setOllamaLogs] = useState<string[]>([]);
-  const [comfyLogs, setComfyLogs] = useState<string[]>([]);
-  const [dreamInput, setDreamInput] = useState('');
-
-  // UI State
-  const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
-  const [isAnalysisSettingsOpen, setIsAnalysisSettingsOpen] = useState(false);
-  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
-  const [isVideoSettingsOpen, setIsVideoSettingsOpen] = useState(false);
-  const [isDictationSettingsOpen, setIsDictationSettingsOpen] = useState(false);
   
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-  const [showDevTools, setShowDevTools] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
-  const [showVisualizationModal, setShowVisualizationModal] = useState(false);
-  const [showArchitectureView, setShowArchitectureView] = useState(false);
-  const [architectureViewMode, setArchitectureViewMode] = useState<'client'|'server'|'ai'>('client');
-
-  // Expose toggler for DevTools to avoid prop drilling mania
-  useEffect(() => {
-    (window as any).toggleArchitectureView = (mode: 'client'|'server'|'ai' = 'client') => {
-        setArchitectureViewMode(mode);
-        setShowArchitectureView(true);
-    };
-  }, []);
+  // Custom Hooks
+  const ui = useAppUI();
+  const logging = useLogging();
+  
+  const [dreamInput, setDreamInput] = useState('');
 
   // Attachments
   const [attachments, setAttachments] = useState<import('./types').DreamAttachment[]>([]);
@@ -86,24 +67,10 @@ function AppContent() {
   // Analysis Settings State
 
 
-  // Logging Helpers
-  const addLog = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev.slice(-49), `[${timestamp}] ${message}`]); // Keep last 50
-  }, []);
-
-  const addOllamaLog = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setOllamaLogs(prev => [...prev.slice(-49), `[${timestamp}] ${message}`]);
-  }, []);
-
-  const addComfyLog = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setComfyLogs(prev => [...prev.slice(-49), `[${timestamp}] ${message}`]);
-  }, []);
+  // Logging Helpers - MOVED TO useLogging HOOK
 
   // Hook Access
-  const engine = useDreamEngine(addLog, addOllamaLog, addComfyLog, devSettings);
+  const engine = useDreamEngine(logging.addLog, logging.addOllamaLog, logging.addComfyLog, devSettings);
   const { dreamState, setDreamState, generateImage, availableModels, availableLoras } = engine;
 
   // Workflow Auto-Scroll Refs
@@ -142,7 +109,7 @@ function AppContent() {
       if (audioBlob) {
           const transcribe = async () => {
               setIsTranscribing(true);
-              addLog(`[Dictation] Processing audio via ${connections.transcriptionProvider}...`);
+              logging.addLog(`[Dictation] Processing audio via ${connections.transcriptionProvider}...`);
               
               try {
                   if (connections.transcriptionProvider === 'local') {
@@ -179,27 +146,27 @@ function AppContent() {
                       const data = await res.json();
                       if (data.text) {
                           setDreamInput(prev => prev + (prev ? ' ' : '') + data.text);
-                          addLog("[Dictation] Text appended from Cloud.");
+                          logging.addLog("[Dictation] Text appended from Cloud.");
                       }
                       setIsTranscribing(false);
                       resetAudio();
                   }
 
               } catch (e: any) {
-                  addLog(`[Error] Dictation failed: ${e.message}`);
+                  logging.addLog(`[Error] Dictation failed: ${e.message}`);
                   setIsTranscribing(false);
                   resetAudio();
               }
           };
           transcribe();
       }
-  }, [audioBlob, addLog, resetAudio, connections, localTranscriber.transcribe]);
+  }, [audioBlob, logging.addLog, resetAudio, connections, localTranscriber.transcribe]);
 
   // Sync Local Transcriber Text
   useEffect(() => {
      if (localTranscriber.text && connections.transcriptionProvider === 'local') {
          setDreamInput(prev => prev + (prev ? ' ' : '') + localTranscriber.text);
-         addLog("[Dictation] Text appended from Local Browser Model.");
+         logging.addLog("[Dictation] Text appended from Local Browser Model.");
          setIsTranscribing(false);
          resetAudio();
      }
@@ -209,7 +176,7 @@ function AppContent() {
   useEffect(() => {
       if (connections.transcriptionProvider === 'local') {
         if (localTranscriber.isModelLoading) {
-             addLog(`[System] Downloading Whisper Model... ${Math.round(localTranscriber.progress)}%`);
+             logging.addLog(`[System] Downloading Whisper Model... ${Math.round(localTranscriber.progress)}%`);
         }
       }
   }, [localTranscriber.isModelLoading, localTranscriber.progress, connections.transcriptionProvider]);
@@ -217,12 +184,12 @@ function AppContent() {
 
   // Login Check
   useEffect(() => {
-    if (!user) setShowLogin(true);
+    if (!user) ui.setShowLogin(true);
     else {
-      setShowLogin(false);
-      addLog(`[System] User Authenticated: ${user.username}`);
+      ui.setShowLogin(false);
+      logging.addLog(`[System] User Authenticated: ${user.username}`);
     }
-  }, [user, addLog]);
+  }, [user, logging.addLog, ui.setShowLogin]);
 
 
   // Handlers
@@ -249,7 +216,7 @@ function AppContent() {
             width: img.naturalWidth,
             height: img.naturalHeight
           }]);
-          addLog(`[System] Image attached: ${file.name} (${img.naturalWidth}x${img.naturalHeight})`);
+          logging.addLog(`[System] Image attached: ${file.name} (${img.naturalWidth}x${img.naturalHeight})`);
         };
         img.src = result;
       };
@@ -262,8 +229,8 @@ function AppContent() {
       const isVisionModel = currentModel.includes('llava') || currentModel.includes('vision') || currentModel.includes('mmproj');
       
       if (!isVisionModel && engine.analysisModel === 'ollama') {
-          addLog("⚠️ TIP: You attached an image, but your model ('" + currentModel + "') might not support vision.");
-          addLog("👉 Please select 'llava' or another vision model in Dream Agent Settings.");
+          logging.addLog("⚠️ TIP: You attached an image, but your model ('" + currentModel + "') might not support vision.");
+          logging.addLog("👉 Please select 'llava' or another vision model in Dream Agent Settings.");
           
           // Optional: Auto-open settings to help them
           // setIsAnalysisSettingsOpen(true); 
@@ -274,7 +241,7 @@ function AppContent() {
   const clearAttachment = () => setAttachments([]);
 
   const handleGenerate = async () => {
-    setShowVisualizationModal(true);
+    ui.setShowVisualizationModal(true);
     
     // Use editablePrompt if available, otherwise fallback
     const analysisOverride = dreamState.analysis ? { ...dreamState.analysis, visualPrompt: editablePrompt } : undefined;
@@ -291,8 +258,9 @@ function AppContent() {
     if (!feedbackPrompt.trim()) return;
     setShowFeedbackModal(false);
 
+
     // Update Analysis with new Feedback
-    addLog("[Iterative] Refining prompt based on feedback...");
+    logging.addLog("[Iterative] Refining prompt based on feedback...");
     setDreamState(prev => ({
       ...prev,
       isLoading: true,
@@ -314,7 +282,7 @@ function AppContent() {
       handleGenerate();
 
     } catch (e) {
-      addLog(`[Error] Refinement Failed: ${e}`);
+      logging.addLog(`[Error] Refinement Failed: ${e}`);
       setDreamState(prev => ({ ...prev, isLoading: false }));
     }
   };
@@ -337,12 +305,12 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] text-slate-200 font-sans selection:bg-purple-500/30">
-      <LoginDialog isOpen={showLogin && !user} onClose={() => { }} />
+      <LoginDialog isOpen={ui.showLogin && !user} onClose={() => { }} />
       
       {/* 1. System Settings (Connections) */}
       <SettingsDialog 
-        isOpen={isSystemSettingsOpen} 
-        onClose={() => setIsSystemSettingsOpen(false)}
+        isOpen={ui.isSystemSettingsOpen} 
+        onClose={() => ui.setIsSystemSettingsOpen(false)}
         title="System Connections"
       >
           <SystemSettingsPanel />
@@ -350,8 +318,8 @@ function AppContent() {
 
         {/* 2. Analysis Settings (LLM) */}
        <SettingsDialog 
-         isOpen={isAnalysisSettingsOpen} 
-         onClose={() => setIsAnalysisSettingsOpen(false)}
+         isOpen={ui.isAnalysisSettingsOpen} 
+         onClose={() => ui.setIsAnalysisSettingsOpen(false)}
          title="Dream Agent Configuration"
        >
            {/* Replaced old AnalysisSettingsPanel with new Dual Agent Panel */}
@@ -367,8 +335,8 @@ function AppContent() {
 
       {/* 3. Dictation Settings */}
       <SettingsDialog 
-        isOpen={isDictationSettingsOpen} 
-        onClose={() => setIsDictationSettingsOpen(false)}
+        isOpen={ui.isDictationSettingsOpen} 
+        onClose={() => ui.setIsDictationSettingsOpen(false)}
         title="Dictation Configuration"
       >
           <DictationSettingsPanel />
@@ -376,8 +344,8 @@ function AppContent() {
 
       {/* 4. Image Generation Settings (ComfyUI) */}
        <SettingsDialog 
-        isOpen={isGenerationSettingsOpen} 
-        onClose={() => setIsGenerationSettingsOpen(false)}
+        isOpen={ui.isGenerationSettingsOpen} 
+        onClose={() => ui.setIsGenerationSettingsOpen(false)}
         title="Image Generation Configuration"
       >
           <SettingsPanel
@@ -387,37 +355,38 @@ function AppContent() {
             availableLoras={availableLoras}
             availableIPAdapters={engine.availableIPAdapters}
             inputImage={attachments.find(a => a.mimeType.startsWith('image/'))}
-            onDone={() => setIsGenerationSettingsOpen(false)}
+            onDone={() => ui.setIsGenerationSettingsOpen(false)}
           />
       </SettingsDialog>
 
       {/* 5. Video Settings (Google Veo) */}
        <SettingsDialog 
-        isOpen={isVideoSettingsOpen} 
-        onClose={() => setIsVideoSettingsOpen(false)}
+        isOpen={ui.isVideoSettingsOpen} 
+        onClose={() => ui.setIsVideoSettingsOpen(false)}
         title="Video Generation Configuration"
       >
           <VideoSettingsPanel
             settings={engine.videoSettings}
             onSettingsChange={engine.setVideoSettings}
+            onDone={() => ui.setIsVideoSettingsOpen(false)}
           />
       </SettingsDialog>
 
       <Header
         isComfyConnected={engine.isComfyConnected}
         isRemote={engine.isRemote}
-        onToggleDevTools={() => setShowDevTools(!showDevTools)}
+        onToggleDevTools={() => ui.setShowDevTools(!ui.showDevTools)}
         onReset={handleReset}
-        onOpenGallery={() => setIsGalleryOpen(true)}
-        showDevTools={showDevTools}
+        onOpenGallery={() => ui.setIsGalleryOpen(true)}
+        showDevTools={ui.showDevTools}
         logs={{
-            system: logs,
-            ollama: ollamaLogs,
-            comfy: comfyLogs
+            system: logging.logs,
+            ollama: logging.ollamaLogs,
+            comfy: logging.comfyLogs
         }}
         devSettings={devSettings}
         onUpdateSettings={setDevSettings}
-        onOpenSettings={() => setIsSystemSettingsOpen(true)} 
+        onOpenSettings={() => ui.setIsSystemSettingsOpen(true)} 
       />
 
       <main className="container mx-auto max-w-[1800px] px-4 py-6 flex-1 flex flex-col gap-6">
@@ -430,10 +399,10 @@ function AppContent() {
 
 
                   {/* Architecture Viewer Overlay */}
-      {showArchitectureView && (
+      {ui.showArchitectureView && (
           <ArchitectureViewer 
-            initialView={architectureViewMode}
-            onClose={() => setShowArchitectureView(false)} 
+            initialView={ui.architectureViewMode}
+            onClose={() => ui.setShowArchitectureView(false)} 
           />
       )}
 
@@ -456,7 +425,7 @@ function AppContent() {
                         isRecording={isRecording}
                         isTranscribing={isTranscribing}
                         onRecordToggle={isRecording ? stopRecording : startRecording}
-                        onOpenSettings={() => setIsDictationSettingsOpen(true)}
+                        onOpenSettings={() => ui.setIsDictationSettingsOpen(true)}
                     />
                   </div>
 
@@ -467,7 +436,7 @@ function AppContent() {
                         onSelect={handleModelSelect}
                         availability={engine.modelAvailability}
                         isChecking={engine.isCheckingModels}
-                        onConfigure={() => setIsAnalysisSettingsOpen(true)}
+                        onConfigure={() => ui.setIsAnalysisSettingsOpen(true)}
                     />
                   </div>
 
@@ -567,9 +536,9 @@ function AppContent() {
               </div>
             )}
 
-            {showLogs && (
+            {ui.showLogs && (
               <div className="h-48 rounded-xl border border-white/10 overflow-hidden">
-                <LogConsole logs={logs} isOpen={true} onClose={() => { }} embedded />
+                <LogConsole logs={logging.logs} isOpen={true} onClose={() => { }} embedded />
               </div>
             )}
           </div>
@@ -588,7 +557,7 @@ function AppContent() {
                               onGenerateImage={() => {
                                   handleGenerate();
                                   // Auto-close settings if open (optional, but Master modal usually stays or user closes it)
-                                  setIsSystemSettingsOpen(false);
+                                  ui.setIsSystemSettingsOpen(false);
                               }}
                           onGenerateVideo={() => engine.generateVideo(editablePrompt)}
                           hasAnalysis={!!dreamState.analysis}
@@ -596,13 +565,13 @@ function AppContent() {
                           onSelectKey={() => { }}
                           onCancel={engine.cancelRender}
 
-                          onOpenSettings={() => setIsGenerationSettingsOpen(true)}
-                          onShowWorkflow={() => setShowVisualizationModal(true)}
+                          onOpenSettings={() => ui.setIsGenerationSettingsOpen(true)}
+                          onShowWorkflow={() => ui.setShowVisualizationModal(true)}
                           isModelSelected={!!engine.comfySettings.model}
                           // settingsContent removed to use global dialog
-                          onOpenVideoSettings={() => setIsVideoSettingsOpen(true)}
+                          onOpenVideoSettings={() => ui.setIsVideoSettingsOpen(true)}
                           availableModels={availableModels}
-                          availableNodeTypes={engine.availableNodeTypes}
+
                           currentModel={engine.comfySettings.model || ''}
                           currentVideoModel={engine.videoSettings.model}
                           onModelSelect={(m) => engine.setComfySettings(prev => ({ ...prev, model: m }))}
@@ -645,7 +614,7 @@ function AppContent() {
                                            title={null} // Hide Title/Analysis Type
                                            prompt={dreamState.analysis?.visualPrompt || dreamState.rawText}
                                            onReset={() => {
-                                                setShowVisualizationModal(false);
+                                                ui.setShowVisualizationModal(false);
                                            }}
                                       />
                                   )
@@ -696,7 +665,7 @@ function AppContent() {
           </div>
         </main>
 
-      <Gallery isOpen={isGalleryOpen} onClose={() => setIsGalleryOpen(false)} />
+      <Gallery isOpen={ui.isGalleryOpen} onClose={() => ui.setIsGalleryOpen(false)} />
       
       <FallbackDialog
         isOpen={dreamState.showFallbackConfirmation || false}
@@ -710,7 +679,7 @@ function AppContent() {
 
 
 
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary from './components/shared/ErrorBoundary';
 
 export default function App() {
   return (

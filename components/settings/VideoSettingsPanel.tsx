@@ -1,6 +1,6 @@
 import React from 'react';
 import { Settings, Film, Clock, Gauge, Sliders, Loader2 } from 'lucide-react';
-import { VideoSettings } from '../types';
+import { VideoSettings } from '../../types';
 
 interface VideoSettingsPanelProps {
   settings: VideoSettings;
@@ -10,7 +10,7 @@ interface VideoSettingsPanelProps {
 
 // VIDEO_MODELS removed in favor of dynamic fetching
 
-import { useConnections } from '../contexts/ConnectionContext';
+import { useConnections } from '../../contexts/ConnectionContext';
 
 const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({ settings, onSettingsChange, onDone }) => {
   const { connections } = useConnections();
@@ -31,7 +31,7 @@ const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({ settings, onSet
   React.useEffect(() => {
     // Fetch models if we are not using Google Veo (or even if we are, to populate list)
     if (comfyHost) {
-        import('../services/comfyService').then(mod => {
+        import('../../services/comfyService').then(mod => {
             mod.getAvailableModels(comfyHost).then(models => {
                 console.log("Loaded Checkpoints:", models);
                 setAvailableCheckpoints(models);

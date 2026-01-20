@@ -1,6 +1,6 @@
 import React from 'react';
 import { Brain, Cpu, MessageSquare, Sliders } from 'lucide-react';
-import { AgentConfig } from '../types';
+import { AgentConfig } from '../../types';
 
 interface AgentConfigPanelProps {
   label: string;

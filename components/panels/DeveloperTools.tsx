@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Wrench, Terminal, Play, SkipForward, AlertCircle, CheckCircle, X, Server, Database, Cloud, Cpu, Monitor, Network, ArrowRight } from 'lucide-react';
-import LogConsole from './LogConsole';
+import LogConsole from '../shared/LogConsole';
 
 interface DeveloperToolsProps {
     logs: {
@@ -233,6 +233,28 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                                         <div className="flex justify-between items-center">
                                             <span className="text-xs font-bold text-slate-300">Gemini</span>
                                             <span className="text-[9px] text-cyan-400 font-mono">Cloud LLM</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Workflow Layer (New) */}
+                            <div className="relative p-4 border border-dashed border-slate-700 bg-slate-900/20 rounded-xl space-y-3">
+                                <span className="absolute -top-3 left-4 px-2 bg-[#0F0F11] text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                    Data Flow
+                                </span>
+                                <div className="absolute top-2 right-2">
+                                     <button className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-colors" onClick={() => (window as any).toggleArchitectureView?.('workflow')}>
+                                        <Monitor className="w-4 h-4" />
+                                     </button>
+                                </div>
+                                
+                                <div className="flex items-center gap-3 p-2 bg-slate-800/50 rounded border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors" role="button" onClick={() => (window as any).toggleArchitectureView?.('workflow')}>
+                                    <Network className="w-4 h-4 text-orange-400" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-bold text-slate-300">Dream Workflow</span>
+                                            <span className="text-[9px] text-orange-400 font-mono">Pipeline</span>
                                         </div>
                                     </div>
                                 </div>

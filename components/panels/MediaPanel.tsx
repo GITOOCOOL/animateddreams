@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image as ImageIcon, Video, Loader2, Play, AlertCircle, Cpu, Activity, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ProgressBar from './ProgressBar';
+import ProgressBar from '../shared/ProgressBar';
 import { ResultView } from './ResultView';
 
 interface MediaPanelProps {
@@ -61,7 +61,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
   onCancel,
   visualizationContent,
   isVisualizing = false,
-  availableNodeTypes,
+
   prompt
 }) => {
   const [activeView, setActiveView] = React.useState<'image' | 'video'>('image');

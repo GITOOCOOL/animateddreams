@@ -1,7 +1,7 @@
 import React from 'react';
-import { AnalysisPipeline, AnalysisLayer, DreamAnalysis } from '../types';
+import { AnalysisPipeline, AnalysisLayer, DreamAnalysis } from '../../types';
 import LayerConfigPanel from './LayerConfigPanel';
-import AnalysisPipelineVisualizer from './AnalysisPipelineVisualizer';
+import AnalysisPipelineVisualizer from '../visualizers/AnalysisPipelineVisualizer';
 import { Sparkles, Brain, Code } from 'lucide-react';
 
 interface AgentSettingsPanelProps {

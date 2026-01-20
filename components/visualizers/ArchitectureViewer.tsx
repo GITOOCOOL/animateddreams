@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-type ArchitectureView = 'client' | 'server' | 'ai';
+type ArchitectureView = 'client' | 'server' | 'ai' | 'workflow';
 
 interface ArchitectureViewerProps {
   onClose: () => void;
@@ -70,33 +70,48 @@ graph TB
     %% Force Vertical Gap
     MainLayout ===> Panels
 
-    subgraph Panels ["3. UI Panels (Prop Drilling Destinations)"]
+    subgraph Structure ["3. Component Structure (Refactored)"]
         direction TB
         
-        subgraph LeftPanelGroup ["Left Panel"]
+        subgraph Panels ["components/panels"]
             direction TB
-            Input[PromptBox]
+            Input["PromptBox (in App)"]
             Settings[SettingsPanel]
-            AgentConfig[AgentSettingsPanel]
-        end
-        
-        subgraph RightPanelGroup ["Right Panel"]
-            direction TB
             Media[MediaPanel]
             Results[ResultView]
-            Modal[FullScreenModal]
+            DevTools[DeveloperTools]
+        end
+        
+        subgraph SubPanels ["components/settings"]
+            direction TB
+            AgentCfg[AgentSettings]
+            VideoCfg[VideoSettings]
+            SystemCfg[SystemSettings]
+        end
+
+        subgraph Visuals ["components/visualizers"]
+            direction TB
+            Arch[ArchitectureViewer]
+            Workflow[WorkflowVisualizer]
+            Pipeline[AnalysisPipelineVisualizer]
+        end
+
+        subgraph Dialogs ["components/dialogs"]
+            Login[LoginDialog]
+            Confirm[ConfirmDialog]
         end
     end
 
-    %% Explicit Data Flow Connections (Vertical)
+    %% Explicit Data Flow Connections
     App -- "Passes Engine" --> Settings
     App -- "Passes Engine" --> Media
     App -- "Drills State" --> Results
     
-    %% Implicit / Hidden Connections
-    Settings -.->|Mutates| DreamState
-    Media -.->|Mutates| DreamState
-    Media --> Modal
+    %% Relationships
+    Settings --> SubPanels
+    Media --> Workflow
+    App --> Arch
+    App --> Pipeline
 `;
           } else if (currentView === 'server') {
               definition = `
@@ -154,6 +169,86 @@ graph TB
         ComfyUI -- "Downloads" --> HuggingFace[Hugging Face / CivitAI]:::external
         Ollama -- "Inference" --> Llama3[Llama 3 / Mistral Model]:::external
     end
+`;
+          } else if (currentView === 'workflow') {
+              definition = `
+graph LR
+    %% Dream Workflow Architecture
+    classDef default fill:#1a1a1a,stroke:#ccc,stroke-width:1px,color:#fff;
+    classDef user fill:#000,stroke:#fff,stroke-width:2px,color:#fff,stroke-dasharray: 5 5;
+    classDef input fill:#222,stroke:#666,stroke-width:1px,color:#aaa;
+    classDef analysis fill:#003344,stroke:#00aaff,stroke-width:2px,color:#fff;
+    classDef generation fill:#220033,stroke:#ff00ff,stroke-width:2px,color:#fff;
+    classDef storage fill:#112211,stroke:#00ff00,stroke-width:2px,color:#fff;
+
+    User((User)):::user
+
+    subgraph Input ["1. Input Phase"]
+        direction TB
+        Txt[Text Prompt]:::input
+        Img[Image Attachment]:::input
+        Audio[Dictation / Mic]:::input
+        
+        Audio -.-> |Transcribe| Txt
+    end
+
+    subgraph Pipeline ["2. Analysis Pipeline (Agentic)"]
+        direction LR
+        
+        Router{Input Type?}
+        
+        subgraph Layers ["Sequential Layers"]
+            Vision[Layer 1: Vision Analysis]:::analysis
+            Enhancer[Layer 2: Prompt Enhancer]:::analysis
+            Formatter[Layer 3: JSON Formatter]:::analysis
+        end
+        
+        DreamData[Structured Dream Analysis]
+    end
+
+    subgraph Engine ["3. Generation Engine"]
+        direction TB
+        Comfy[ComfyUI Host]:::generation
+        
+        subgraph Workflows ["Comfy Workflows"]
+            T2I[Text-to-Image]
+            I2I[Image-to-Image]
+            IPA[IP-Adapter Control]
+            Vid[SVD Video]
+        end
+    end
+    
+    subgraph Output ["4. Storage & Display"]
+        direction TB
+        FileSystem[Disk: /saved_dreams]:::storage
+        Gallery[Gallery UI]
+    end
+
+    %% Flow Connections
+    User --> Txt
+    User --> Img
+    User --> Audio
+    
+    Txt --> Router
+    Img --> Router
+    
+    Router -- "Has Image" --> Vision
+    Router -- "Text Only" --> Enhancer
+    
+    Vision --> Enhancer
+    Enhancer --> Formatter
+    Formatter -- "JSON" --> DreamData
+    
+    DreamData -- "visualPrompt" --> Comfy
+    Img -- "Source Image" --> Comfy
+    
+    Comfy --> T2I
+    Comfy --> I2I
+    Comfy --> IPA
+    Comfy --> Vid
+    
+    T2I & I2I & IPA & Vid --> FileSystem
+    FileSystem --> Gallery
 `;
           }
             
@@ -222,6 +317,13 @@ graph TB
                 >
                     AI SERVICES
                 </button>
+                <div className="w-px bg-slate-800 mx-1"></div>
+                <button 
+                    onClick={() => setCurrentView('workflow')}
+                    className={`px-3 py-1 text-xs font-bold rounded transition-colors ${currentView === 'workflow' ? 'bg-orange-900/50 text-orange-300' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    WORKFLOW
+                </button>
             </div>
         </div>
         
@@ -282,6 +384,13 @@ graph TB
                     <span className="flex items-center gap-1"><span className="w-2 h-2 bg-[#003344] border border-[#00aaff]"></span> AI Service</span>
                     <span className="flex items-center gap-1"><span className="w-2 h-2 bg-[#442200] border border-[#ffaa00]"></span> External API</span>
                     <span className="text-purple-400">Showing AI Service Integration</span>
+                </>
+            )}
+            {currentView === 'workflow' && (
+                <>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 bg-[#003344] border border-[#00aaff]"></span> Analysis</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 bg-[#220033] border border-[#ff00ff]"></span> Generation</span>
+                    <span className="text-orange-400">Showing End-to-End Data Flow</span>
                 </>
             )}
          </span>

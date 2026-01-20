@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LoginDialogProps {
     isOpen: boolean;

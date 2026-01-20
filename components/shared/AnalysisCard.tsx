@@ -1,5 +1,5 @@
 import React from 'react';
-import { DreamAnalysis } from '../types';
+import { DreamAnalysis } from '../../types';
 import { Terminal, Sparkles, AlertTriangle, BrainCircuit, Tag } from 'lucide-react';
 
 interface AnalysisCardProps {

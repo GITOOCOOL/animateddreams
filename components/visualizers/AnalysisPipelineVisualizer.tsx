@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowRight, Circle, CheckCircle, Clock, Database, Brain, Sparkles, FileText, Code } from 'lucide-react';
-import { AnalysisLayer, DreamAnalysis } from '../types';
+import { AnalysisLayer, DreamAnalysis } from '../../types';
 
 interface AnalysisPipelineVisualizerProps {
   layers: AnalysisLayer[];
