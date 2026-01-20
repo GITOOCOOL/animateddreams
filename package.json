@@ -22,11 +22,13 @@
     "framer-motion": "^12.24.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.562.0",
+    "mermaid": "^11.12.2",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "svg-pan-zoom": "^3.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

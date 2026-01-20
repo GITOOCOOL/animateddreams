@@ -1,47 +1,62 @@
-# Animated Dreams - Agent & Developer Documentation
+# Animated Dreams - Project Memory Bank & Agent Directives
 
-## Project Overview
-**Animated Dreams** is a Generative AI application that transforms text into visual art (images and videos). It uses a local-first approach with a Node.js/Express backend and a React/Vite frontend.
+> [!IMPORTANT]
+> **READ THIS FIRST**: This file is the "Brain" of the project. It MUST be read at the start of every session and UPDATED at the end of every significant task. It contains the source of truth for architecture, active context, and agent rules.
 
-### Core Technologies
--   **Frontend**: React, Vite, TailwindCSS, Framer Motion
--   **Backend**: Node.js, Express, SQLite
--   **AI Services**:
-    -   **Ollama**: Local text analysis and prompt enhancement.
-    -   **Google Gemini**: Cloud-based advanced text analysis (optional).
-    -   **ComfyUI**: Node-based Stable Diffusion engine for image/video generation.
+## 1. Project Overview
+**Animated Dreams** is a local-first Generative AI application for transforming text into visual art (images/videos). It orchestrates a React frontend with a Node.js backend to manage external AI services.
 
-## Architecture & Network
-The app is designed to run on a host machine (GPU server) and be accessible from any device on the local network (LAN).
+### Tech Stack
+-   **Frontend**: React 19, Vite, TailwindCSS, Framer Motion, Lucide React.
+-   **Backend**: Node.js, Express 5, SQLite (Future: Persistent storage).
+-   **AI Engine**:
+    -   **ComfyUI**: Stable Diffusion backend (WebSocket/HTTP).
+    -   **Ollama**: Local LLM for prompt enhancement.
+    -   **Google GenAI**: Cloud LLM for advanced analysis.
 
--   **Frontend Port**: `5173` (Vite, exposes `0.0.0.0`)
--   **Backend Port**: `3001` (Express, proxies `/api`)
--   **Safe Local Mode**: Uses relative paths (`/api/...`) to ensure proxies work correctly across the network.
--   **Security**: Uses a manual `generateUUID()` polyfill to support functionality in non-secure (HTTP) LAN contexts where `crypto.randomUUID` is unavailable.
+## 2. Architecture & Design Patterns
+### Core Concepts
+-   **Local-First Network**: Designed for LAN usage. Frontend (5173) talks to Backend (3001) via relative paths `/api` to avoid CORS/IP issues.
+-   **God Object State**: `useDreamEngine` is the central hook managing `isGenerating`, `logs`, and service connections. It is "drilled" into almost every panel.
+-   **Service Adapters**: `services/` contains simple wrappers that normalize external APIs (Ollama, Comfy) into a standard app format.
 
-## Directory Structure
--   `/server`: Express backend logic (`index.js`).
--   `/src`: React frontend source.
-    -   `/components`: UI components (`MediaPanel`, `ResultView`, etc.).
-    -   `/hooks`: Custom hooks (`useDreamEngine.ts` - Core Logic).
-    -   `/services`: API wrappers (`comfyService.ts`, `ollamaService.ts`).
-    -   `/contexts`: Global state (`ConnectionContext`, `AuthContext`).
+### Active Directory Structure
+-   `/server`: Express backend (`index.js` entry).
+-   `/src`: React source.
+    -   `/components`: Feature-rich dumb components (`MediaPanel`, `ArchitectureViewer`).
+    -   `/hooks`: Logic containers (`useDreamEngine`).
+    -   `/services`: API layers (`comfyService.ts`, `ollamaService.ts`).
+    -   `/workers`: Web Workers for heavy lifting (e.g., local logs).
+-   `/saved_dreams`: Output directory for generated media.
 
-## Recent Changes (Changelog)
-### Fixes & Refinements [Latest]
-1.  **Remote Access Support**:
-    -   Replaced hardcoded `localhost:3001` with relative paths.
-    -   Added `generateUUID` polyfill to fix crashes on HTTP LAN connections.
-2.  **UI/UX Improvements**:
-    -   **Separated Progress Bars**: Dedicated purple bar for Text Analysis (Input Card) vs. Cyan bar for Neural Generation (Media Panel).
-    -   **Result View Layout**: Refactored to a flex-column layout to prevent image truncation. Details panel now sits *below* the image.
-    -   **Settings**: Fixed "Denoise" slider snapping issue (allow `0` value).
+## 3. Agent Directives (THE RULES)
+1.  **Memory Maintenance**:
+    -   **Read**: You must read this file at the start of every task.
+    -   **Update**: You must UPDATE this file when: architecture changes, new features are added, or a task is completed.
+2.  **Architecture Sync**:
+    -   **Code Parity**: The Mermaid diagrams in `ArchitectureViewer.tsx` MUST match the actual code structure. If you refactor, you redo the diagrams.
+    -   **On Demand**: Be ready to explain the architecture using `ArchitectureViewer` as a visual aid.
+3.  **Context Logging**:
+    -   **Record**: Log every significant User Request and your Solution in the "Conversation History" section below. Keep it concise but searchable.
 
-## Development Setup
-1.  **Prerequisites**: Node.js 18+, Python 3.10+ (for ComfyUI), Ollama.
-2.  **Install**: `npm install`
-3.  **Run**: `npm run dev` (Starts both Frontend and Backend concurrently).
+## 4. Active Context (Memory Bank)
+### Current Focus
+-   **System Self-Improvement**: Overhauling `agent.md` to be a dynamic memory bank.
+-   **Architecture Visualization**: Debugging and refining the `ArchitectureViewer`.
 
-## Troubleshooting
--   **"crypto.randomUUID is not a function"**: This is fixed by the polyfill. If it reappears, ensure you aren't using raw `crypto` calls in client-side code without the helper.
--   **Images not loading remotely**: Ensure the backend allows CORS (it does) and that you are accessing via the IP address, not `localhost`.
+### Known Issues / Technical Debt
+-   **Mermaid Parsing**: Fixed syntax error in Server View (parenthesis in node labels).
+-   **Prop Drilling**: `useDreamEngine` is drilled deep; consider Context or specialized hooks for sub-panels in future refactors.
+
+## 5. Conversation History
+*(Newest entries at the bottom)*
+
+### [2026-01-20] Debugging ArchitectureViewer
+-   **User**: "Expression is not callable" error in `ArchitectureViewer.tsx`.
+-   **Agent**: Fixed TSX syntax errors (malformed template literals).
+-   **User**: Mermaid parsing error in Server view ("Expecting 'SQE'...").
+-   **Agent**: Added quotes to node labels with parentheses (e.g., `["Express Server (Port 3001)"]`).
+
+### [2026-01-20] Project Memory Overhaul
+-   **User**: Update `agent.md` to be "active memory" and include architecture maintenance instructions.
+-   **Agent**: Refactored `agent.md` into this Memory Bank format. Added "Agent Directives" and "Conversation History".

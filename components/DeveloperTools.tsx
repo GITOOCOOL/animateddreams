@@ -141,7 +141,7 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                                     Client Layer
                                 </span>
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                                    <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20 cursor-pointer hover:bg-blue-500/20 transition-colors" onClick={() => (window as any).toggleArchitectureView?.()}>
                                         <Monitor className="w-6 h-6 text-blue-400" />
                                     </div>
                                     <div>
@@ -167,7 +167,7 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                                     Server Layer
                                 </span>
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20">
+                                    <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors" onClick={() => (window as any).toggleArchitectureView?.('server')}>
                                         <Server className="w-6 h-6 text-green-400" />
                                     </div>
                                     <div className="flex-1">
@@ -198,6 +198,11 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                                 <span className="absolute -top-3 left-4 px-2 bg-[#0F0F11] text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                     AI Services
                                 </span>
+                                <div className="absolute top-2 right-2">
+                                     <button className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-colors" onClick={() => (window as any).toggleArchitectureView?.('ai')}>
+                                        <Monitor className="w-4 h-4" />
+                                     </button>
+                                </div>
                                 
                                 {/* ComfyUI */}
                                 <div className="flex items-center gap-3 p-2 bg-slate-800/50 rounded border border-slate-700/50">

@@ -32,6 +32,8 @@ import { FallbackDialog } from './components/FallbackDialog';
 import { ResultView } from './components/ResultView';
 
 
+import { ArchitectureViewer } from './components/ArchitectureViewer';
+
 function AppContent() {
   const { user } = useAuth();
   const { connections, updateConnection } = useConnections();
@@ -53,6 +55,16 @@ function AppContent() {
   const [showDevTools, setShowDevTools] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showVisualizationModal, setShowVisualizationModal] = useState(false);
+  const [showArchitectureView, setShowArchitectureView] = useState(false);
+  const [architectureViewMode, setArchitectureViewMode] = useState<'client'|'server'|'ai'>('client');
+
+  // Expose toggler for DevTools to avoid prop drilling mania
+  useEffect(() => {
+    (window as any).toggleArchitectureView = (mode: 'client'|'server'|'ai' = 'client') => {
+        setArchitectureViewMode(mode);
+        setShowArchitectureView(true);
+    };
+  }, []);
 
   // Attachments
   const [attachments, setAttachments] = useState<import('./types').DreamAttachment[]>([]);
@@ -417,7 +429,15 @@ function AppContent() {
                   
 
 
-                  {/* Input Area */}
+                  {/* Architecture Viewer Overlay */}
+      {showArchitectureView && (
+          <ArchitectureViewer 
+            initialView={architectureViewMode}
+            onClose={() => setShowArchitectureView(false)} 
+          />
+      )}
+
+      {/* Main Content Area */}
                   <div className="mb-4 relative flex-1 flex flex-col min-h-[350px]">
 
                     <textarea
