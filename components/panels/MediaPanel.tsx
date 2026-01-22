@@ -80,7 +80,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
        </div>
 
       {/* Main Display Area */}
-      <div className="group relative bg-black border border-slate-800 rounded-lg overflow-hidden h-full min-h-[400px] flex items-center justify-center transition-all bg-[url('/grid-pattern.png')] flex-1 shadow-2xl shadow-black">
+      <div className="group relative bg-card border border-subtle rounded-lg overflow-hidden h-full min-h-[400px] flex items-center justify-center transition-all bg-[url('/grid-pattern.png')] flex-1 shadow-subtle">
         
         {/* GLOBAL VISUALIZATION OVERLAY (Workflow Graph) */}
         {isVisualizing && visualizationContent && (
@@ -140,11 +140,11 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                 </div>
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 opacity-30 group-hover:opacity-50 transition-opacity">
-                    <ImageIcon className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-                    <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest mb-2">
+                    <ImageIcon className="w-16 h-16 text-dim mx-auto mb-4" />
+                    <p className="text-dim font-mono text-[10px] uppercase tracking-widest mb-2">
                         {hasAnalysis ? "[ Neural Link Established ]" : "[ Awaiting Input Analysis ]"}
                     </p>
-                    <div className="h-px w-20 bg-slate-800 mt-2"></div>
+                    <div className="h-px w-20 bg-border-subtle mt-2"></div>
                 </div>
             )}
         </div>
@@ -168,7 +168,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
        <div className="flex items-center gap-3 p-1">
             
             {/* Model & Config */}
-            <div className="flex-1 bg-[#1a1a1c] border border-white/5 rounded-lg px-3 py-2 flex items-center justify-between relative group/config">
+            <div className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 flex items-center justify-between relative group/config">
                  {/* Popover Settings Panel */}
                 {settingsContent && (
                     <div className="absolute bottom-full left-0 mb-4 w-[400px] z-50 origin-bottom-left">
@@ -193,15 +193,15 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                     </div>
                     
                     {/* Separator */}
-                    <div className="w-px h-8 bg-white/10"></div>
+                    <div className="w-px h-8 bg-border-subtle"></div>
 
                     {/* Model Display */}
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2 mb-0.5">
                             <div className={`w-1.5 h-1.5 rounded-full ${isComfyConnected ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`}></div>
-                            <span className="text-[9px] text-slate-500 font-mono uppercase">Checkpoint</span>
+                            <span className="text-[9px] text-dim font-mono uppercase">Checkpoint</span>
                         </div>
-                        <span className="text-xs font-bold text-white font-mono truncate max-w-[120px]">
+                        <span className="text-xs font-bold text-main font-mono truncate max-w-[120px]">
                             {currentModel ? currentModel.replace('.safetensors', '') : 'SELECT_MODEL'}
                         </span>
                      </div>
@@ -213,7 +213,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                             e.stopPropagation();
                             onOpenSettings && onOpenSettings();
                         }}
-                        className="text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-700 p-2 rounded-lg transition-all"
+                        className="text-dim hover:text-main bg-hover p-2 rounded-lg transition-all"
                         title="Configuration"
                     >
                         <Settings className="w-4 h-4" />
@@ -238,7 +238,7 @@ const MediaPanel: React.FC<MediaPanelProps> = ({
                         ? 'bg-cyan-600 hover:bg-cyan-500 text-black shadow-[0_0_20px_rgba(34,211,238,0.3)]' 
                         : isGeneratingImage 
                             ? 'bg-red-900/80 hover:bg-red-900 text-white border border-red-500/30'
-                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'}
+                            : 'bg-card text-dim cursor-not-allowed'}
                 `}
             >
                 {isGeneratingImage ? 'CANCEL' : 'RENDER IMAGE'}

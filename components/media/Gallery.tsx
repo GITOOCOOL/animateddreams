@@ -4,22 +4,17 @@ import { Calendar, AlignLeft, Eye, ImageIcon, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ResultView } from '../panels/ResultView';
 
-interface GalleryProps {
-    isOpen: boolean;
-    onClose: () => void;
-}
-
-const Gallery: React.FC<GalleryProps> = ({ isOpen, onClose }) => {
+const Gallery: React.FC = () => {
     const { token } = useAuth();
     const [dreams, setDreams] = useState<SavedDream[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDream, setSelectedDream] = useState<SavedDream | null>(null);
 
     useEffect(() => {
-        if (isOpen && token) {
+        if (token) {
             loadGallery();
         }
-    }, [isOpen, token]);
+    }, [token]);
 
     const loadGallery = async () => {
         setLoading(true);
@@ -33,8 +28,6 @@ const Gallery: React.FC<GalleryProps> = ({ isOpen, onClose }) => {
         }
     };
 
-    if (!isOpen) return null;
-
     const formatDate = (ts: number) => {
         return new Date(ts).toLocaleDateString(undefined, {
             year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -42,14 +35,7 @@ const Gallery: React.FC<GalleryProps> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-40 bg-black/95 backdrop-blur-sm overflow-y-auto p-4 md:p-8 animate-in slide-in-from-bottom-10 fade-in duration-300">
-            <button 
-                onClick={onClose}
-                className="absolute top-4 right-4 z-50 bg-slate-800 hover:bg-slate-700 p-2 rounded-full text-white transition-colors"
-            >
-                <X className="w-6 h-6" />
-            </button>
-            
+        <div className="w-full min-h-[calc(100vh-80px)] p-4 md:p-8 animate-in fade-in duration-500">
             <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-8 flex items-center justify-between">

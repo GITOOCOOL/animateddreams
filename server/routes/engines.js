@@ -119,4 +119,60 @@ router.post('/check', async (req, res) => {
   }
 });
 
+// Proxy route to bypass CORS for external ComfyUI instances
+router.use('/proxy', async (req, res, next) => {
+    const targetHost = req.headers['x-comfy-host'];
+    if (!targetHost) {
+        return res.status(400).json({ error: 'Missing x-comfy-host header' });
+    }
+
+    try {
+        // req.url in a router is relative to the mount point (/proxy)
+        // So hitting /api/engines/proxy/object_info gives req.url = /object_info
+        const url = new URL(req.url, targetHost);
+        
+        const headers = { ...req.headers };
+        // Remove headers that might cause the PC server to reject the request
+        delete headers.host;
+        delete headers['x-comfy-host'];
+        delete headers.connection;
+        delete headers.origin; 
+        delete headers.referer;
+
+        const fetchOptions = {
+            method: req.method,
+            headers: headers,
+            redirect: 'follow',
+            signal: AbortSignal.timeout(5000) // 5s timeout to prevent hanging
+        };
+
+        // Forward JSON body if it exists
+        if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
+            fetchOptions.body = JSON.stringify(req.body);
+        }
+
+        console.log(`[Proxy] Forwarding ${req.method} to: ${url.toString()} (Target: ${targetHost})`);
+        const proxyRes = await fetch(url.toString(), fetchOptions);
+
+        // Forward response status and headers
+        res.status(proxyRes.status);
+        proxyRes.headers.forEach((v, k) => {
+            // Filter headers that might conflict with our Express response
+            if (!['content-encoding', 'transfer-encoding', 'connection'].includes(k.toLowerCase())) {
+                res.setHeader(k, v);
+            }
+        });
+
+        const data = await proxyRes.arrayBuffer();
+        res.send(Buffer.from(data));
+    } catch (error) {
+        console.error('[Backend Proxy Error]:', error);
+        res.status(502).json({ 
+            error: 'Proxy fetch failed', 
+            details: error.message,
+            target: targetHost 
+        });
+    }
+});
+
 export default router;

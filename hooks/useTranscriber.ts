@@ -34,7 +34,6 @@ export function useTranscriber() {
 
             worker.current.addEventListener('message', (event) => {
                 const { status, data } = event.data;
-                console.log(`[useTranscriber] Worker Message: ${status}`, data);
 
                 switch (status) {
                     case 'loading':

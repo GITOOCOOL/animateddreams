@@ -27,6 +27,7 @@
     "node-fetch": "^3.3.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-router-dom": "^7.12.0",
     "sqlite3": "^5.1.7",
     "svg-pan-zoom": "^3.6.2"
   },

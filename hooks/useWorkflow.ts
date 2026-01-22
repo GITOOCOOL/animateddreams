@@ -7,9 +7,18 @@ import videoWorkflowTemplate from '../services/workflow_svd.json';
 
 const DEFAULT_PRESETS: WorkflowPreset[] = [
     {
+        id: 'dynamic',
+        name: 'Dynamic (UI Settings)',
+        description: 'Generates workflow from current UI sliders. 1:1 Control.',
+        version: '2.0',
+        type: 'image',
+        workflow: null as any, // Signals to use generator
+        nodeMapping: {}
+    },
+    {
         id: 'standard-t2i',
-        name: 'Standard Text-to-Image',
-        description: 'Default SDXL Workflow with Refiner support.',
+        name: 'Legacy: Juggernaut XL',
+        description: 'Fixed Template (50 steps, DPM++ 2M)',
         version: '1.0',
         type: 'image',
         workflow: workflowTemplate,
@@ -23,8 +32,8 @@ const DEFAULT_PRESETS: WorkflowPreset[] = [
     },
     {
         id: 'standard-i2i',
-        name: 'Standard Image-to-Image',
-        description: 'SDXL Img2Img with VAE Encode.',
+        name: 'Legacy: Img2Img',
+        description: 'Fixed Template (Img2Img)',
         version: '1.0',
         type: 'image',
         workflow: img2imgWorkflowTemplate,
@@ -57,7 +66,8 @@ export function useWorkflow() {
     const [presets, setPresets] = useState<WorkflowPreset[]>(DEFAULT_PRESETS);
     
     // Image Workflow State
-    const [activeImagePresetId, setActiveImagePresetId] = useState<string>('standard-t2i');
+    const [activeImagePresetId, setActiveImagePresetId] = useState<string>('dynamic');
+
     const [customImageWorkflow, setCustomImageWorkflow] = useState<Record<string, any> | null>(null);
 
     // Video Workflow State

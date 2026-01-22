@@ -62,8 +62,17 @@ export const EngineProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isConfigured = !!engine.config.host && !!engine.config.model;
         if (isConfigured) {
           try {
-            const response = await fetch(`${engine.config.host}/api/tags`, { 
+            const host = engine.config.host;
+            // A request is truly local if it matches the current browser's originhost
+            const isLocal = host.includes(window.location.hostname);
+            const useProxy = !isLocal || (host.includes('127.0.0.1') && window.location.hostname !== '127.0.0.1');
+            
+            const url = useProxy ? `/api/engines/proxy/api/tags` : `${host}/api/tags`;
+            const headers: Record<string, string> = useProxy ? { 'x-comfy-host': host } : {};
+
+            const response = await fetch(url, { 
               method: 'GET',
+              headers,
               signal: AbortSignal.timeout(3000)
             });
             isAvailable = response.ok;
@@ -78,7 +87,15 @@ export const EngineProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isConfigured = !!engine.config.host || !!engine.config.serverId;
         if (isConfigured && engine.config.host) {
           try {
-            const response = await fetch(`${engine.config.host}/system_stats`, {
+            const host = engine.config.host;
+            const isLocal = host.includes(window.location.hostname);
+            const useProxy = !isLocal || (host.includes('127.0.0.1') && window.location.hostname !== '127.0.0.1');
+            
+            const url = useProxy ? `/api/engines/proxy/system_stats` : `${host}/system_stats`;
+            const headers: Record<string, string> = useProxy ? { 'x-comfy-host': host } : {};
+
+            const response = await fetch(url, {
+              headers,
               signal: AbortSignal.timeout(3000)
             });
             isAvailable = response.ok;
@@ -271,8 +288,16 @@ export const EngineProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       if (engine.provider === 'ollama') {
         if (!engine.config.host) return false;
-        const response = await fetch(`${engine.config.host}/api/tags`, { 
+        const host = engine.config.host;
+        const isLocal = host.includes(window.location.hostname);
+        const useProxy = !isLocal || (host.includes('127.0.0.1') && window.location.hostname !== '127.0.0.1');
+        
+        const url = useProxy ? `/api/engines/proxy/api/tags` : `${host}/api/tags`;
+        const headers: Record<string, string> = useProxy ? { 'x-comfy-host': host } : {};
+
+        const response = await fetch(url, { 
           method: 'GET',
+          headers,
           signal: AbortSignal.timeout(5000)
         });
         isAvailable = response.ok;
@@ -281,7 +306,15 @@ export const EngineProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } else if (engine.provider.startsWith('comfy')) {
         if (!engine.config.host && !engine.config.serverId) return false;
         if (engine.config.host) {
-          const response = await fetch(`${engine.config.host}/system_stats`, {
+          const host = engine.config.host;
+          const isLocal = host.includes(window.location.hostname);
+          const useProxy = !isLocal || (host.includes('127.0.0.1') && window.location.hostname !== '127.0.0.1');
+          
+          const url = useProxy ? `/api/engines/proxy/system_stats` : `${host}/system_stats`;
+          const headers: Record<string, string> = useProxy ? { 'x-comfy-host': host } : {};
+
+          const response = await fetch(url, {
+            headers,
             signal: AbortSignal.timeout(5000)
           });
           isAvailable = response.ok;

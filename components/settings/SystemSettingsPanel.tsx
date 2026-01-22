@@ -20,7 +20,7 @@ const SystemSettingsPanel: React.FC = () => {
   } = useEngineManager();
 
   const SectionHeader = ({ icon: Icon, title }: { icon: any, title: string }) => (
-      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-white/5 pb-2 flex items-center gap-2 mb-4 mt-8 first:mt-0">
+      <h4 className="text-xs font-bold text-dim uppercase tracking-wider border-b border-subtle pb-2 flex items-center gap-2 mb-4 mt-8 first:mt-0">
           <Icon className="w-4 h-4 text-cyan-500" />
           {title}
       </h4>

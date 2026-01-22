@@ -44,6 +44,26 @@ db.serialize(() => {
         type TEXT, -- 'image' or 'video'
         FOREIGN KEY(dreamId) REFERENCES dreams(id)
     )`);
+
+    // Workflows Table (User-saved ComfyUI workflows)
+    db.run(`CREATE TABLE IF NOT EXISTS workflows (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        name TEXT NOT NULL,
+        description TEXT,
+        type TEXT NOT NULL, -- 'image' or 'video'
+        workflow_json TEXT NOT NULL, -- Complete ComfyUI workflow JSON
+        thumbnail TEXT, -- Optional preview image
+        is_default BOOLEAN DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY(userId) REFERENCES users(id)
+    )`);
+
+    // Create indexes for workflows table
+    db.run(`CREATE INDEX IF NOT EXISTS idx_workflows_userId ON workflows(userId)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_workflows_type ON workflows(type)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_workflows_created_at ON workflows(created_at DESC)`);
 });
 
 export default db;

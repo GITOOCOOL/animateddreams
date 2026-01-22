@@ -36,19 +36,27 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api\/ollama/, '/api')
         },
         '/api/db': {
-          target: 'http://localhost:3001',
+          target: 'http://127.0.0.1:3001',
           changeOrigin: true
         },
         '/api/ai': {
-          target: 'http://localhost:3001',
+          target: 'http://127.0.0.1:3001',
           changeOrigin: true
         },
         '/api/auth': {
-          target: 'http://localhost:3001',
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true
+        },
+        '/api/workflows': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true
+        },
+        '/api/engines': {
+          target: 'http://127.0.0.1:3001',
           changeOrigin: true
         },
         '/storage': {
-          target: 'http://localhost:3001',
+          target: 'http://127.0.0.1:3001',
           changeOrigin: true
         }
       }

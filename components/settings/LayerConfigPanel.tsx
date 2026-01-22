@@ -59,22 +59,22 @@ const SortableLayerItem: React.FC<{
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="bg-[#1a1a1c] border border-white/5 rounded-xl mb-3 overflow-hidden transition-colors hover:border-white/10 group">
+    <div ref={setNodeRef} style={style} className="bg-surface border border-subtle rounded-xl mb-3 overflow-hidden transition-colors hover:border-subtle-accent group">
       {/* Header / Drag Handle */}
-      <div className="flex items-center p-3 gap-3 bg-black/20">
-        <button {...attributes} {...listeners} className="text-slate-600 hover:text-slate-300 cursor-grab active:cursor-grabbing">
+      <div className="flex items-center p-3 gap-3 bg-card">
+        <button {...attributes} {...listeners} className="text-dim hover:text-main cursor-grab active:cursor-grabbing">
             <GripVertical className="w-5 h-5" />
         </button>
         
         <div className="flex-1 flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${layer.enabled ? 'bg-purple-900/30 text-purple-400' : 'bg-slate-800 text-slate-500'}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${layer.enabled ? 'bg-purple-900/30 text-purple-400' : 'bg-card text-dim'}`}>
                 <span className="text-xs font-bold">{index + 1}</span>
             </div>
             
             <input 
                 value={layer.name}
                 onChange={(e) => onUpdate(layer.id, { name: e.target.value })}
-                className="bg-transparent text-sm font-bold text-slate-200 outline-none placeholder:text-slate-600 w-full"
+                className="bg-transparent text-sm font-bold text-main outline-none placeholder:text-dim w-full"
                 placeholder="Layer Name"
             />
         </div>
@@ -107,7 +107,7 @@ const SortableLayerItem: React.FC<{
                        <select 
                             value={layer.config.provider}
                             onChange={(e) => handleConfigChange('provider', e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-slate-300 outline-none focus:border-purple-500"
+                            className="w-full bg-app border border-subtle rounded-lg p-2 text-xs text-main outline-none focus:border-purple-500"
                         >
                             <option value="ollama">Ollama (Local)</option>
                             <option value="gemini">Gemini (Cloud)</option>
@@ -122,7 +122,7 @@ const SortableLayerItem: React.FC<{
                             <select 
                                 value={layer.config.model}
                                 onChange={(e) => handleConfigChange('model', e.target.value)}
-                                className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-slate-300 outline-none focus:border-purple-500"
+                                className="w-full bg-app border border-subtle rounded-lg p-2 text-xs text-main outline-none focus:border-purple-500"
                             >
                                 {availableOllamaModels.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
@@ -130,13 +130,13 @@ const SortableLayerItem: React.FC<{
                            <select 
                                 value={layer.config.model}
                                 onChange={(e) => handleConfigChange('model', e.target.value)}
-                                className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-slate-300 outline-none focus:border-purple-500"
+                                className="w-full bg-app border border-subtle rounded-lg p-2 text-xs text-main outline-none focus:border-purple-500"
                             >
                                 <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                                 <option value="gemini-pro">Gemini Pro</option>
                             </select>
                        ) : (
-                           <div className="w-full bg-black/50 border border-white/5 rounded-lg p-2 text-xs text-slate-600 italic">
+                           <div className="w-full bg-black/50 border border-white/5 rounded-lg p-2 text-xs text-dim italic">
                                N/A (Raw Mode)
                            </div>
                        )}
@@ -153,7 +153,7 @@ const SortableLayerItem: React.FC<{
                         <textarea 
                             value={layer.config.systemPrompt || ''}
                             onChange={(e) => handleConfigChange('systemPrompt', e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-xs font-mono text-slate-300 outline-none focus:border-purple-500 min-h-[100px]"
+                            className="w-full bg-app border border-subtle rounded-lg p-3 text-xs font-mono text-main outline-none focus:border-purple-500 min-h-[100px]"
                             placeholder="You are an expert..."
                         />
                    </div>
@@ -277,15 +277,15 @@ const LayerConfigPanel: React.FC<LayerConfigPanelProps> = ({ layers, onUpdateLay
                       <button
                         key={preset.name}
                         onClick={() => addLayer(preset)}
-                        className="p-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-left transition-colors flex flex-col gap-1 group"
+                        className="p-3 bg-card border-subtle"
                       >
                            <span className="text-[10px] font-bold uppercase text-purple-400 group-hover:text-purple-300">{preset.role}</span>
-                           <span className="text-xs font-medium text-slate-300">{preset.name}</span>
+                           <span className="text-xs font-medium text-main">{preset.name}</span>
                       </button>
                  ))}
                  <button
                     onClick={() => addLayer()}
-                    className="col-span-2 p-3 bg-white/5 hover:bg-white/10 border border-white/5 border-dashed rounded-lg text-xs font-bold uppercase text-slate-400 hover:text-white transition-colors flex items-center justify-center gap-2"
+                    className="col-span-2 p-3 bg-card border-dashed border-subtle text-dim hover:text-main transition-colors flex items-center justify-center gap-2"
                  >
                      <Plus className="w-4 h-4" /> Custom Blank Layer
                  </button>

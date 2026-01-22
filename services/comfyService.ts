@@ -1,10 +1,10 @@
-import workflowTemplate from '../workflow_template.json';
-import img2imgWorkflowTemplate from '../workflow_img2img.json';
-import ipadapterWorkflowTemplate from '../workflow_ipadapter.json';
-import svdWorkflowTemplate from './workflow_svd.json';
-import animatediffWorkflowTemplate from './workflow_animatediff.json';
 import { ComfySettings, VideoSettings } from '../types';
 import { DynamicWorkflowEngine } from './dynamicWorkflowEngine';
+import { generateWorkflowFromParameters, WorkflowParameters } from './workflowGenerator';
+
+// Template imports for Video (SVD/AnimateDiff) - kept for now
+import svdWorkflowTemplate from './workflow_svd.json';
+import animatediffWorkflowTemplate from './workflow_animatediff.json'; 
 
 // Helper to get WS URL from HTTP Host
 // Polyfill for crypto.randomUUID in insecure contexts (HTTP LAN)
@@ -19,12 +19,44 @@ const generateUUID = () => {
 };
 
 /**
+ * Robust fetch wrapper that handles backend proxying for cross-origin ComfyUI hosts.
+ */
+const comfyFetch = async (host: string, path: string, options: RequestInit = {}) => {
+    // Determine if the target host is effectively 'local' to the BROWSER
+    const isLocalToBrowser = host.includes(window.location.hostname);
+    
+    // We only skip the proxy if it's the exact same machine/port as the web app (to avoid CORS)
+    // or if it's a relative path.
+    if (host.startsWith('/') || isLocalToBrowser) {
+        return fetch(`${host}${path}`, options);
+    }
+
+    // Special case: If host is 127.0.0.1 but we are accessing via a LAN IP, 
+    // the proxy (on the server) will hit ITSELF. This is a common misconfig.
+    if (host.includes('127.0.0.1') || host.includes('localhost')) {
+        console.warn(`[ComfyService] You are set to '127.0.0.1' but accessing from ${window.location.hostname}. This will likely fail as the proxy will look at the BACKEND machine, not your current machine. Use your actual LAN IP instead.`);
+    }
+
+    // Otherwise, route through our backend's proxy route to bypass browser CORS
+    const proxyUrl = `/api/engines/proxy${path}`;
+    const headers = {
+        ...(options.headers || {}),
+        'x-comfy-host': host
+    } as Record<string, string>;
+
+    return fetch(proxyUrl, { 
+        ...options, 
+        headers 
+    });
+};
+
+/**
  * Fetches all available node types from the ComfyUI server.
  * This allows for dynamic node discovery and "Add Any Node" functionality.
  */
 export const getAvailableNodeTypes = async (host: string): Promise<string[]> => {
     try {
-        const response = await fetch(`${host}/object_info`);
+        const response = await comfyFetch(host, '/object_info');
         if (!response.ok) throw new Error("Failed to fetch object info");
         const data = await response.json();
         return Object.keys(data);
@@ -75,7 +107,7 @@ interface ComfyHistoryResponse {
  */
 export const checkComfyConnection = async (host: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${host}/system_stats`);
+    const response = await comfyFetch(host, '/system_stats');
     return response.ok;
   } catch (error) {
     console.warn("ComfyUI connection check failed:", error);
@@ -88,7 +120,7 @@ export const checkComfyConnection = async (host: string): Promise<boolean> => {
  */
 export const getSystemStats = async (host: string): Promise<any> => {
   try {
-    const response = await fetch(`${host}/system_stats`);
+    const response = await comfyFetch(host, '/system_stats');
     if (!response.ok) return null;
     return await response.json();
   } catch (e) {
@@ -106,7 +138,7 @@ export const getAvailableModels = async (host: string): Promise<string[]> => {
 
     // 1. Fetch Standard Checkpoints
     try {
-        const response = await fetch(`${host}/object_info/CheckpointLoaderSimple`);
+        const response = await comfyFetch(host, '/object_info/CheckpointLoaderSimple');
         if (response.ok) {
             const data = await response.json();
             const ckpts = data.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0];
@@ -119,14 +151,14 @@ export const getAvailableModels = async (host: string): Promise<string[]> => {
     // 2. Fetch AnimateDiff Models (Motion Modules)
     try {
         // Try Gen1 Loader
-        const adResponse = await fetch(`${host}/object_info/ADE_AnimateDiffLoaderGen1`);
+        const adResponse = await comfyFetch(host, '/object_info/ADE_AnimateDiffLoaderGen1');
         if (adResponse.ok) {
             const data = await adResponse.json();
             const adModels = data.ADE_AnimateDiffLoaderGen1?.input?.required?.model_name?.[0]; // Gen1 uses 'model_name'
             if (Array.isArray(adModels)) adModels.forEach(m => models.add(m));
         } else {
              // Fallback to legacy loader if Gen1 missing
-            const legacyResponse = await fetch(`${host}/object_info/ADE_AnimateDiffLoader`);
+            const legacyResponse = await comfyFetch(host, '/object_info/ADE_AnimateDiffLoader');
             if (legacyResponse.ok) {
                 const data = await legacyResponse.json();
                 const adModels = data.ADE_AnimateDiffLoader?.input?.required?.model_name?.[0];
@@ -135,6 +167,18 @@ export const getAvailableModels = async (host: string): Promise<string[]> => {
         }
     } catch (e) {
         console.warn("Failed to fetch AnimateDiff models", e);
+    }
+
+    // 3. Fetch from CheckpointLoader (some custom nodes use this name)
+    try {
+        const response = await comfyFetch(host, '/object_info/CheckpointLoader');
+        if (response.ok) {
+            const data = await response.json();
+            const ckpts = data.CheckpointLoader?.input?.required?.ckpt_name?.[0];
+            if (Array.isArray(ckpts)) ckpts.forEach(m => models.add(m));
+        }
+    } catch (e) {
+        console.warn("Failed to fetch from CheckpointLoader", e);
     }
 
     return Array.from(models).sort();
@@ -155,8 +199,8 @@ const uploadImageToComfy = async (file: File | Blob, host: string): Promise<stri
   const filename = file instanceof File ? file.name : `upload-${Date.now()}.png`;
   formData.append('image', file, filename);
   formData.append('overwrite', 'true');
-
-  const res = await fetch(`${host}/upload/image`, {
+  
+  const res = await comfyFetch(host, '/upload/image', {
     method: 'POST',
     body: formData
   });
@@ -176,7 +220,7 @@ export const getAvailableLoras = async (host: string): Promise<string[]> => {
     // 1. Direct Fetch Strategy
     try {
       console.log("Fetching LoRAs from LoraLoader...");
-      const directRes = await fetch(`${host}/object_info/LoraLoader`);
+      const directRes = await comfyFetch(host, '/object_info/LoraLoader');
       if (directRes.ok) {
         const data = await directRes.json();
         const inputs = data.LoraLoader?.input?.required?.lora_name;
@@ -189,7 +233,7 @@ export const getAvailableLoras = async (host: string): Promise<string[]> => {
     }
 
     // 2. Fallback Scan Strategy
-    const response = await fetch(`${host}/object_info`);
+    const response = await comfyFetch(host, '/object_info');
     if (!response.ok) throw new Error("Failed to fetch object info");
 
     const data = await response.json();
@@ -216,7 +260,7 @@ export const getAvailableLoras = async (host: string): Promise<string[]> => {
  */
 export const getAvailableIPAdapters = async (host: string): Promise<string[]> => {
     try {
-        const response = await fetch(`${host}/object_info/IPAdapterModelLoader`);
+        const response = await comfyFetch(host, '/object_info/IPAdapterModelLoader');
         if (!response.ok) throw new Error("Failed to fetch object info");
 
         const data = await response.json();
@@ -227,7 +271,37 @@ export const getAvailableIPAdapters = async (host: string): Promise<string[]> =>
         return [];
     }
 };
+/**
+ * Fetches the list of available samplers from ComfyUI.
+ */
+export const getAvailableSamplers = async (host: string): Promise<string[]> => {
+    try {
+        const response = await comfyFetch(host, '/object_info/KSampler');
+        if (!response.ok) throw new Error("Failed to fetch KSampler info");
+        const data = await response.json();
+        const samplers = data.KSampler?.input?.required?.sampler_name?.[0];
+        return Array.isArray(samplers) ? samplers : [];
+    } catch (error) {
+        console.error("Failed to fetch samplers:", error);
+        return [];
+    }
+};
 
+/**
+ * Fetches the list of available schedulers from ComfyUI.
+ */
+export const getAvailableSchedulers = async (host: string): Promise<string[]> => {
+    try {
+        const response = await comfyFetch(host, '/object_info/KSampler');
+        if (!response.ok) throw new Error("Failed to fetch KSampler info");
+        const data = await response.json();
+        const schedulers = data.KSampler?.input?.required?.scheduler?.[0];
+        return Array.isArray(schedulers) ? schedulers : [];
+    } catch (error) {
+        console.error("Failed to fetch schedulers:", error);
+        return [];
+    }
+};
 // Helper to get safe node input
 const getInput = (workflow: any, nodeId: string) => {
     if (!workflow[nodeId]) return null;
@@ -240,8 +314,8 @@ const getInput = (workflow: any, nodeId: string) => {
  */
 export const cancelGeneration = async (host: string): Promise<void> => {
     try {
-        await fetch(`${host}/interrupt`, { method: 'POST' });
-        await fetch(`${host}/queue`, { 
+        await comfyFetch(host, '/interrupt', { method: 'POST' });
+        await comfyFetch(host, '/queue', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clear: true }) 
@@ -250,163 +324,6 @@ export const cancelGeneration = async (host: string): Promise<void> => {
     } catch (e) {
         console.error("Failed to cancel generation:", e);
     }
-};
-
-/**
- * modifyWorkflow:
- * Recursively updates the prompt in the workflow JSON.
- */
-const modifyWorkflow = (baseWorkflow: any, visualPrompt: string, originalPrompt: string, settings?: ComfySettings, inputImageFilename?: string) => {
-  const newWorkflow = JSON.parse(JSON.stringify(baseWorkflow));
-
-  // --- 1. Basic Parameter Updates ---
-
-  // Update Positive Prompt (Node 6)
-  if (getInput(newWorkflow, "6")) {
-    newWorkflow["6"].inputs.text = `${visualPrompt}, detailed face, realistic eyes, natural skin texture, masterpiece, best quality, 8k`;
-  }
-
-  // Custom Metadata Injection (Node 99)
-  newWorkflow["99"] = {
-    inputs: {
-      text: `ORIGINAL USER DREAM: ${originalPrompt}`,
-      clip: ["4", 1] // Dummy connection
-    },
-    class_type: "CLIPTextEncode",
-    _meta: { title: "METADATA: User Input" }
-  };
-
-  // Update KSampler Settings (Node 3)
-  const kSampler = getInput(newWorkflow, "3");
-  if (kSampler) {
-    if (settings) {
-        kSampler.steps = settings.steps;
-        kSampler.cfg = settings.cfg;
-        kSampler.sampler_name = settings.sampler;
-        kSampler.scheduler = settings.scheduler;
-        kSampler.denoise = inputImageFilename ? settings.denoise : 1;
-        kSampler.seed = settings.seed ?? Math.floor(Math.random() * 1000000000000);
-    } else {
-        kSampler.seed = Math.floor(Math.random() * 1000000000000);
-    }
-  }
-
-  // Update Checkpoint (Node 4)
-  if (getInput(newWorkflow, "4") && settings?.model) {
-    newWorkflow["4"].inputs.ckpt_name = settings.model;
-  }
-
-  // Update Dimensions (Node 5 - Empty Latent)
-  if (getInput(newWorkflow, "5") && settings) {
-    newWorkflow["5"].inputs.width = settings.width || 1024;
-    newWorkflow["5"].inputs.height = settings.height || 1024;
-  }
-
-  // Update Image Scale (Node 12)
-  if (getInput(newWorkflow, "12") && settings) {
-      newWorkflow["12"].inputs.width = settings.width || 1024;
-      newWorkflow["12"].inputs.height = settings.height || 1024;
-  }
-
-  // Update Input Image (Node 11)
-  if (inputImageFilename && getInput(newWorkflow, "11")) {
-    newWorkflow["11"].inputs.image = inputImageFilename;
-  }
-
-
-  // --- 2. Advanced Logic & Chaining ---
-  // We need to carefully chain: Checkpoint -> [LoRA] -> [IPAdapter] -> KSampler
-  // We track the "current source" for Model and CLIP.
-
-  let currentModelSource = ["4", 0]; // Default: Checkpoint output 0
-  let currentClipSource = ["4", 1];  // Default: Checkpoint output 1
-
-  // A. LoRA Injection (Iterative Chaining)
-  if (settings && settings.loras && settings.loras.length > 0) {
-      settings.loras.forEach((lora, index) => {
-          if (!lora.name || lora.name === "None") return;
-          
-          const loraNodeId = `100${index}`; // Unique ID for each LoRA
-          
-          newWorkflow[loraNodeId] = {
-            inputs: {
-              lora_name: lora.name,
-              strength_model: lora.strength,
-              strength_clip: lora.strength,
-              model: currentModelSource,
-              clip: currentClipSource
-            },
-            class_type: "LoraLoader",
-            _meta: { title: `Dynamic LoRA ${index + 1}` }
-          };
-
-          // Update sources to point to this LoRA's output
-          currentModelSource = [loraNodeId, 0];
-          currentClipSource = [loraNodeId, 1];
-      });
-  } else if (settings && (settings as any).lora && (settings as any).lora !== "None") {
-      // BACKWARD COMPATIBILITY for old settings
-       console.log(`[Workflow] Injecting LoRA (Legacy): ${(settings as any).lora}`);
-       const loraNodeId = "100";
-       newWorkflow[loraNodeId] = {
-            inputs: {
-              lora_name: (settings as any).lora,
-              strength_model: (settings as any).loraStrength || 1.0,
-              strength_clip: (settings as any).loraStrength || 1.0,
-              model: currentModelSource,
-              clip: currentClipSource
-            },
-            class_type: "LoraLoader",
-            _meta: { title: "Dynamic LoRA" }
-       };
-       currentModelSource = [loraNodeId, 0];
-       currentClipSource = [loraNodeId, 1];
-  }
-
-  // B. IP Adapter Injection (Node 20)
-  // Only if present in the template (meaning we switched to IPAdapter workflow)
-  if (newWorkflow["20"]) {
-      const ipAdapter = getInput(newWorkflow, "20");
-      ipAdapter.model = currentModelSource;
-
-      if (settings?.ipAdapterWeight !== undefined) {
-          ipAdapter.weight = settings.ipAdapterWeight;
-      }
-      
-      if (getInput(newWorkflow, "21")) {
-          newWorkflow["21"].inputs.model = currentModelSource;
-
-          if (settings.ipAdapterModel) {
-              newWorkflow["21"].inputs.ipadapter_file = settings.ipAdapterModel;
-          } else if (settings.ipAdapterPreset) {
-              newWorkflow["21"].inputs.preset = settings.ipAdapterPreset;
-          }
-      }
-
-      currentModelSource = ["20", 0];
-  }
-
-  // C. Img2Img VAE / Latent Logic (Bypassing Scale if needed)
-  if (settings?.useOriginalDimensions) {
-      if (getInput(newWorkflow, "10")) {
-          newWorkflow["10"].inputs.pixels = ["11", 0];
-      }
-  }
-
-
-  // --- 3. Final Wiring to KSampler & Text Encoders ---
-
-  // Connect KSampler (3)
-  if (kSampler) {
-      kSampler.model = currentModelSource;
-      // Note: KSampler doesn't take CLIP, it takes Positive/Negative conditioning
-  }
-
-  // Connect Text Encoders (6 & 7) to the correct CLIP source
-  if (getInput(newWorkflow, "6")) newWorkflow["6"].inputs.clip = currentClipSource;
-  if (getInput(newWorkflow, "7")) newWorkflow["7"].inputs.clip = currentClipSource;
-
-  return newWorkflow;
 };
 
 /**
@@ -435,32 +352,71 @@ export const generateComfyImage = async (
   
   if (settings) log(`[Settings] Model: ${settings.model}, Steps: ${settings.steps}, Sampler: ${settings.sampler}`);
 
-  let workflowTmpl: any = workflowTemplate;
   let uploadedFilename: string | undefined;
 
   // 1. If we have an input image, upload it...
   if (inputImage) {
     try {
       uploadedFilename = await uploadImageToComfy(inputImage, host);
-      if (settings?.useIpAdapter) {
-          workflowTmpl = ipadapterWorkflowTemplate;
-          log(`[Upload] Image uploaded. Switching to IP-Adapter workflow.`);
-      } else {
-          workflowTmpl = img2imgWorkflowTemplate;
-          log(`[Upload] Image uploaded. Switching to Img2Img workflow.`);
-      }
+      log(`[Upload] Image uploaded successfully: ${uploadedFilename}`);
     } catch (err) {
       log(`[Error] Failed to upload input image: ${err}`);
+      throw err;
     }
   }
 
-  // Choose Workflow: Custom > Template
+  // Choose Workflow: Custom > Generated from Parameters
   let workflow: any;
+  
   if (customWorkflow) {
       log(`[Workflow] Using Custom/Preset Workflow.`);
-      workflow = DynamicWorkflowEngine.injectExample(customWorkflow, settings || {} as ComfySettings, visualPrompt, originalPrompt);
+      // If a custom workflow is provided, we use it AS IS.
+      // We might inject seed if it's missing or if explicitly requested, but for now 
+      // we assume the Custom Workflow is "Ready to Run".
+      // TODO: Maybe still allow simple prompt injection if the user wants?
+      workflow = customWorkflow; 
+      
+      // Attempt to inject random seed if KSampler exists, just to ensure variety
+      // This is a minimal touch approach
+      Object.values(workflow).forEach((node: any) => {
+          if (node.class_type === 'KSampler' && node.inputs) {
+              node.inputs.seed = Math.floor(Math.random() * 1000000000000);
+          }
+      });
+      
+  } else if (settings) {
+      log(`[Workflow] Generating Dynamic Workflow from Parameters.`);
+      
+      const params: WorkflowParameters = {
+          model: settings.model,
+          positivePrompt: visualPrompt,
+          negativePrompt: "nsfw, nude, deformed, blurry, bad anatomy, disfigured, watermark, text, signature", // Default negative or from settings (if we add negative to settings)
+          steps: settings.steps,
+          cfg: settings.cfg,
+          sampler: settings.sampler,
+          scheduler: settings.scheduler || 'normal',
+          width: settings.width,
+          height: settings.height,
+          denoise: settings.denoise,
+          seed: settings.seed, // If undefined, generator creates random
+          loras: settings.loras?.map(l => ({ 
+              name: l.name, 
+              strength: l.strength 
+          })),
+          useIpAdapter: settings.useIpAdapter,
+          ipAdapterModel: settings.ipAdapterModel,
+          ipAdapterWeight: settings.ipAdapterWeight,
+          ipAdapterPreset: settings.ipAdapterPreset,
+          inputImagePath: uploadedFilename,
+          workflowType: inputImage 
+            ? (settings.useIpAdapter ? 'ipadapter' : 'img2img') 
+            : 'txt2img'
+      };
+
+      workflow = generateWorkflowFromParameters(params);
+      
   } else {
-      workflow = modifyWorkflow(workflowTmpl, visualPrompt, originalPrompt, settings, uploadedFilename);
+      throw new Error("No settings provided for generation.");
   }
 
   const clientId = generateUUID();
@@ -483,7 +439,7 @@ export const generateComfyImage = async (
     socket.onopen = async () => {
       log(`[Connection] Connected to Neural Core (ID: ${clientId})`);
       try {
-        const queueRes = await fetch(`${host}/prompt`, {
+        const queueRes = await comfyFetch(host, '/prompt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: workflow, client_id: clientId })
@@ -571,7 +527,7 @@ export const generateComfyImage = async (
 };
 
 const getHistory = async (promptId: string, host: string): Promise<ComfyHistoryResponse> => {
-  const res = await fetch(`${host}/history/${promptId}`);
+  const res = await comfyFetch(host, `/history/${promptId}`);
   if (!res.ok) throw new Error("Failed to get history");
   return await res.json();
 };
@@ -693,7 +649,7 @@ export const generateComfyVideo = async (
         socket.onopen = async () => {
              // ... queue logic similar to image ...
              try {
-                const queueRes = await fetch(`${host}/prompt`, {
+                const queueRes = await comfyFetch(host, '/prompt', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ prompt: workflow, client_id: clientId })

@@ -26,8 +26,8 @@ const AnalysisPipelineVisualizer: React.FC<AnalysisPipelineVisualizerProps> = ({
   };
 
   return (
-    <div className="w-full bg-[#0F0F11] border border-white/5 rounded-xl p-6 overflow-x-auto">
-      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-6 flex items-center gap-2">
+    <div className="w-full bg-app border border-subtle rounded-xl p-6 overflow-x-auto">
+      <h4 className="text-xs font-bold text-dim uppercase tracking-wider mb-6 flex items-center gap-2">
         <Database className="w-4 h-4" /> Live Analysis Pipeline
       </h4>
 
@@ -35,10 +35,10 @@ const AnalysisPipelineVisualizer: React.FC<AnalysisPipelineVisualizerProps> = ({
         
         {/* Start Node */}
         <div className="flex flex-col items-center gap-2 opacity-50">
-            <div className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center">
-                <span className="text-[10px] font-bold">RAW</span>
+            <div className="w-10 h-10 rounded-full bg-hover border-2 border-subtle flex items-center justify-center">
+                <span className="text-[10px] font-bold text-dim">RAW</span>
             </div>
-            <span className="text-[10px] text-slate-500 font-mono">Input</span>
+            <span className="text-[10px] text-dim font-mono">Input</span>
         </div>
 
         {/* Dynamic Layers */}
@@ -49,9 +49,9 @@ const AnalysisPipelineVisualizer: React.FC<AnalysisPipelineVisualizerProps> = ({
             const isComplete = !isAnalyzing && finalAnalysis; // Assuming simpler completion logic for now
 
             // Determine State Color
-            let borderColor = "border-slate-700";
-            let bgColor = "bg-slate-900";
-            let textColor = "text-slate-500";
+            let borderColor = "border-subtle";
+            let bgColor = "bg-card";
+            let textColor = "text-dim";
             let glow = "";
 
             if (isActive) {
@@ -68,7 +68,7 @@ const AnalysisPipelineVisualizer: React.FC<AnalysisPipelineVisualizerProps> = ({
             return (
                 <React.Fragment key={layer.id}>
                     {/* Arrow Connector */}
-                    <div className={`transition-all duration-500 ${isActive ? 'text-purple-500 opacity-100' : 'text-slate-700 opacity-50'}`}>
+                    <div className={`transition-all duration-500 ${isActive ? 'text-purple-500 opacity-100' : 'text-dim opacity-50'}`}>
                         <ArrowRight className={`w-5 h-5 ${isActive ? 'animate-pulse' : ''}`} />
                     </div>
 
@@ -101,7 +101,7 @@ const AnalysisPipelineVisualizer: React.FC<AnalysisPipelineVisualizerProps> = ({
         })}
 
         {/* End Node */}
-        <div className="text-slate-700 opacity-50"><ArrowRight className="w-5 h-5" /></div>
+        <div className="text-dim opacity-50"><ArrowRight className="w-5 h-5" /></div>
         
         <div className={`flex flex-col items-center gap-2 transition-opacity duration-500 ${finalAnalysis ? 'opacity-100' : 'opacity-30'}`}>
              <div className="w-10 h-10 rounded-full bg-cyan-900/20 border-2 border-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)]">

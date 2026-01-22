@@ -118,13 +118,13 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-white">Engine Connections</h3>
-          <p className="text-sm text-slate-400 mt-1">Configure AI engines for analysis, image, video generation, and voice transcription</p>
+          <h3 className="text-lg font-bold text-main">Engine Connections</h3>
+          <p className="text-sm text-dim mt-1">Configure AI engines for analysis, image, video generation, and voice transcription</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setShowPresetDialog(true)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold uppercase flex items-center gap-2 transition-colors"
+            className="px-3 py-2 bg-card hover:bg-hover rounded-lg text-xs font-bold uppercase flex items-center gap-2 transition-colors"
           >
             <Download className="w-4 h-4" />
             Presets
@@ -142,7 +142,7 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
       {/* Engine Lists by Type */}
       {(['analysis', 'image', 'video', 'dictation'] as const).map((type) => (
         <div key={type} className="space-y-3">
-          <h4 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+          <h4 className="text-sm font-bold text-main uppercase tracking-wider">
             {type === 'analysis' ? 'Analysis Engines' : 
              type === 'image' ? 'Image Engines' : 
              type === 'video' ? 'Video Engines' : 
@@ -154,14 +154,14 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
               {enginesByType[type].map((engine) => (
                 <div
                   key={engine.id}
-                  className="bg-[#1a1a1c] border border-white/10 rounded-lg p-4 hover:border-white/20 transition-colors"
+                  className="bg-surface border border-subtle rounded-lg p-4 hover:border-subtle-accent transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1">
                       <div className={`w-3 h-3 rounded-full ${getEngineStatusColor(engine)}`}></div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white">{engine.name}</span>
+                          <span className="text-sm font-bold text-main">{engine.name}</span>
                           {engine.isDefault && (
                             <span className="text-[9px] px-2 py-0.5 bg-cyan-900/30 text-cyan-400 rounded uppercase font-bold">
                               Default
@@ -179,14 +179,14 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
                         className="p-2 hover:bg-white/5 rounded-lg transition-colors disabled:opacity-50"
                         title="Test Connection"
                       >
-                        <Activity className={`w-4 h-4 text-slate-400 ${testingEngines.has(engine.id) ? 'animate-spin' : ''}`} />
+                        <Activity className={`w-4 h-4 text-dim ${testingEngines.has(engine.id) ? 'animate-spin' : ''}`} />
                       </button>
                       <button
                         onClick={() => setEditingEngine(engine)}
                         className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                         title="Configure"
                       >
-                        <SettingsIcon className="w-4 h-4 text-slate-400" />
+                        <SettingsIcon className="w-4 h-4 text-dim" />
                       </button>
                       <button
                         onClick={() => onDeleteEngine(engine.id)}
@@ -201,7 +201,7 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
               ))}
             </div>
           ) : (
-            <div className="bg-[#1a1a1c] border border-white/10 rounded-lg p-6 text-center">
+            <div className="bg-surface border border-subtle rounded-lg p-6 text-center">
               <p className="text-sm text-slate-500">No {type} engines configured</p>
             </div>
           )}
@@ -210,17 +210,17 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
 
       {/* Add Engine Dialog */}
       {showAddDialog && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1c] border border-white/20 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-white/10">
-              <h3 className="text-xl font-bold text-white">Add New Engine</h3>
-              <p className="text-sm text-slate-400 mt-1">Select an engine type and provider</p>
+        <div className="fixed inset-0 bg-app/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-subtle-accent rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-subtle">
+              <h3 className="text-xl font-bold text-main">Add New Engine</h3>
+              <p className="text-sm text-dim mt-1">Select an engine type and provider</p>
             </div>
             
             <div className="p-6 space-y-6">
               {/* Type Selection */}
               <div>
-                <label className="text-sm font-bold text-slate-300 mb-2 block">Engine Type</label>
+                <label className="text-sm font-bold text-main mb-2 block">Engine Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['analysis', 'image', 'video', 'dictation'] as const).map((type) => (
                     <button
@@ -229,7 +229,7 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
                       className={`px-4 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${
                         selectedType === type
                           ? 'bg-cyan-600 text-black'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                          : 'bg-card text-dim hover:bg-hover'
                       }`}
                     >
                       {type}
@@ -240,17 +240,17 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
 
               {/* Provider Templates */}
               <div>
-                <label className="text-sm font-bold text-slate-300 mb-2 block">Select Provider</label>
+                <label className="text-sm font-bold text-main mb-2 block">Select Provider</label>
                 <div className="grid grid-cols-1 gap-2">
                   {DEFAULT_ENGINE_TEMPLATES[selectedType].map((template) => (
                     <button
                       key={template.provider}
                       onClick={() => handleAddEngine(template)}
-                      className="bg-slate-800 hover:bg-slate-700 border border-white/10 rounded-lg p-4 text-left transition-colors group"
+                      className="bg-card hover:bg-hover border border-subtle rounded-lg p-4 text-left transition-colors group"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-sm font-bold text-white">{template.label}</div>
+                          <div className="text-sm font-bold text-main">{template.label}</div>
                           <div className="text-xs text-slate-500 font-mono mt-1">{template.provider}</div>
                         </div>
                         <Plus className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
@@ -261,10 +261,10 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
               </div>
             </div>
 
-            <div className="p-6 border-t border-white/10 flex justify-end">
+            <div className="p-6 border-t border-subtle flex justify-end">
               <button
                 onClick={() => setShowAddDialog(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold uppercase transition-colors"
+                className="px-4 py-2 bg-card hover:bg-hover rounded-lg text-sm font-bold uppercase transition-colors"
               >
                 Cancel
               </button>
@@ -275,32 +275,32 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
 
       {/* Edit Engine Dialog */}
       {editingEngine && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1c] border border-white/20 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-white/10">
-              <h3 className="text-xl font-bold text-white">Configure Engine</h3>
-              <p className="text-sm text-slate-400 mt-1">{editingEngine.name}</p>
+        <div className="fixed inset-0 bg-app/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-subtle-accent rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-subtle">
+              <h3 className="text-xl font-bold text-main">Configure Engine</h3>
+              <p className="text-sm text-dim mt-1">{editingEngine.name}</p>
             </div>
             
             <div className="p-6 space-y-4">
               {/* Engine Name */}
               <div>
-                <label className="text-sm font-bold text-slate-300 mb-2 block">Engine Name</label>
+                <label className="text-sm font-bold text-main mb-2 block">Engine Name</label>
                 <input
                   type="text"
                   value={editingEngine.name}
                   onChange={(e) => setEditingEngine({ ...editingEngine, name: e.target.value })}
-                  className="w-full bg-black border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-cyan-500 focus:outline-none"
+                  className="w-full bg-app border border-subtle rounded-lg px-4 py-2 text-main focus:border-cyan-500 focus:outline-none"
                 />
               </div>
 
               {/* Enabled Toggle */}
               <div className="flex items-center justify-between">
-                <label className="text-sm font-bold text-slate-300">Enabled</label>
+                <label className="text-sm font-bold text-main">Enabled</label>
                 <button
                   onClick={() => setEditingEngine({ ...editingEngine, isEnabled: !editingEngine.isEnabled })}
                   className={`w-12 h-6 rounded-full transition-colors relative ${
-                    editingEngine.isEnabled ? 'bg-green-600' : 'bg-slate-700'
+                    editingEngine.isEnabled ? 'bg-green-600' : 'bg-hover'
                   }`}
                 >
                   <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
@@ -311,11 +311,11 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
 
               {/* Configuration Fields */}
               <div>
-                <label className="text-sm font-bold text-slate-300 mb-2 block">Configuration</label>
+                <label className="text-sm font-bold text-main mb-2 block">Configuration</label>
                 <div className="space-y-3">
                   {Object.entries(editingEngine.config).map(([key, value]) => (
                     <div key={key}>
-                      <label className="text-xs text-slate-400 mb-1 block capitalize">{key}</label>
+                      <label className="text-xs text-dim mb-1 block capitalize">{key}</label>
                       <input
                         type={key.toLowerCase().includes('key') || key.toLowerCase().includes('password') ? 'password' : 'text'}
                         value={value as string}
@@ -323,7 +323,7 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
                           ...editingEngine,
                           config: { ...editingEngine.config, [key]: e.target.value }
                         })}
-                        className="w-full bg-black border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none font-mono"
+                        className="w-full bg-app border border-subtle rounded-lg px-3 py-2 text-sm text-main focus:border-cyan-500 focus:outline-none font-mono"
                         placeholder={`Enter ${key}`}
                       />
                     </div>
@@ -332,10 +332,10 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
               </div>
             </div>
 
-            <div className="p-6 border-t border-white/10 flex justify-end gap-2">
+            <div className="p-6 border-t border-subtle flex justify-end gap-2">
               <button
                 onClick={() => setEditingEngine(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold uppercase transition-colors"
+                className="px-4 py-2 bg-card hover:bg-hover rounded-lg text-sm font-bold uppercase transition-colors"
               >
                 Cancel
               </button>
@@ -353,23 +353,23 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
 
       {/* Preset Dialog */}
       {showPresetDialog && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1c] border border-white/20 rounded-2xl max-w-md w-full">
-            <div className="p-6 border-b border-white/10">
-              <h3 className="text-xl font-bold text-white">Engine Presets</h3>
+        <div className="fixed inset-0 bg-app/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-subtle-accent rounded-2xl max-w-md w-full">
+            <div className="p-6 border-b border-subtle">
+              <h3 className="text-xl font-bold text-main">Engine Presets</h3>
             </div>
             
             <div className="p-6 space-y-4">
               {/* Save Current as Preset */}
               <div>
-                <label className="text-sm font-bold text-slate-300 mb-2 block">Save Current Configuration</label>
+                <label className="text-sm font-bold text-main mb-2 block">Save Current Configuration</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={presetName}
                     onChange={(e) => setPresetName(e.target.value)}
                     placeholder="Preset name..."
-                    className="flex-1 bg-black border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
+                    className="flex-1 bg-app border border-subtle rounded-lg px-3 py-2 text-sm text-main focus:border-cyan-500 focus:outline-none"
                   />
                   <button
                     onClick={() => {
@@ -388,7 +388,7 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
               {/* Load Preset */}
               {availablePresets.length > 0 && (
                 <div>
-                  <label className="text-sm font-bold text-slate-300 mb-2 block">Load Preset</label>
+                  <label className="text-sm font-bold text-main mb-2 block">Load Preset</label>
                   <div className="space-y-2">
                     {availablePresets.map((preset) => (
                       <button
@@ -397,9 +397,9 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
                           onLoadPreset(preset);
                           setShowPresetDialog(false);
                         }}
-                        className="w-full bg-slate-800 hover:bg-slate-700 border border-white/10 rounded-lg p-3 text-left transition-colors flex items-center justify-between group"
+                        className="w-full bg-card hover:bg-hover border border-subtle rounded-lg p-3 text-left transition-colors flex items-center justify-between group"
                       >
-                        <span className="text-sm text-white">{preset}</span>
+                        <span className="text-sm text-main">{preset}</span>
                         <Upload className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition-colors" />
                       </button>
                     ))}
@@ -408,10 +408,10 @@ const EngineConfigPanel: React.FC<EngineConfigPanelProps> = ({
               )}
             </div>
 
-            <div className="p-6 border-t border-white/10 flex justify-end">
+            <div className="p-6 border-t border-subtle flex justify-end">
               <button
                 onClick={() => setShowPresetDialog(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold uppercase transition-colors"
+                className="px-4 py-2 bg-card hover:bg-hover rounded-lg text-sm font-bold uppercase transition-colors"
               >
                 Close
               </button>

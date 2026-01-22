@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.js';
 import dreamRoutes from './routes/dreams.js';
 import aiRoutes from './routes/ai.js';
 import engineRoutes from './routes/engines.js';
+import workflowRoutes from './routes/workflows.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/db/dreams', dreamRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/engines', engineRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 const server = app.listen(PORT, () => {
     console.log(`AnimatedDreams Server running on port ${PORT}`);

@@ -49,7 +49,7 @@ const EngineSelector: React.FC<EngineSelectorProps> = ({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 hover:bg-slate-700 rounded-lg transition-all text-slate-300 hover:text-white"
+        className="flex items-center gap-2 px-3 py-1.5 bg-card hover:bg-hover rounded-lg transition-all text-dim hover:text-main"
         title="Select Engine"
       >
         <div className={`w-2 h-2 rounded-full ${selectedEngine ? getStatusColor(selectedEngine) : 'bg-gray-500'}`}></div>
@@ -60,9 +60,9 @@ const EngineSelector: React.FC<EngineSelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 right-0 bg-[#1a1a1c] border border-white/10 rounded-lg shadow-xl min-w-[200px] z-50 overflow-hidden">
+        <div className="absolute top-full mt-2 right-0 bg-surface border border-subtle rounded-lg shadow-xl shadow-slate-200/50 dark:shadow-black/50 min-w-[200px] z-50 overflow-hidden">
           <div className="p-2">
-            <div className="text-[9px] text-slate-500 uppercase font-bold px-2 py-1 mb-1">
+            <div className="text-[9px] text-dim uppercase font-bold px-2 py-1 mb-1">
               Available Engines
             </div>
             {availableEngines.length > 0 ? (
@@ -75,8 +75,8 @@ const EngineSelector: React.FC<EngineSelectorProps> = ({
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${
                     selectedEngineId === engine.id
-                      ? 'bg-cyan-900/30 text-cyan-400'
-                      : 'hover:bg-white/5 text-slate-300'
+                      ? 'bg-cyan-500/10 text-accent'
+                      : 'hover:bg-hover text-main'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -84,18 +84,18 @@ const EngineSelector: React.FC<EngineSelectorProps> = ({
                     <span className="text-xs font-mono">{engine.name}</span>
                   </div>
                   {selectedEngineId === engine.id && (
-                    <Check className="w-3 h-3 text-cyan-400" />
+                    <Check className="w-3 h-3 text-accent" />
                   )}
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-xs text-slate-500 text-center">
+              <div className="px-3 py-2 text-xs text-dim text-center">
                 No engines configured
               </div>
             )}
           </div>
-          <div className="border-t border-white/5 p-2">
-            <div className="text-[9px] text-slate-600 px-2 py-1">
+          <div className="border-t border-subtle p-2">
+            <div className="text-[9px] text-dim/60 px-2 py-1">
               Configure engines in Settings
             </div>
           </div>

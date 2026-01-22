@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { analyzeDreamGemini } from '../services/geminiService';
-import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvailableModels, getAvailableLoras, getAvailableIPAdapters, cancelGeneration } from '../services/comfyService';
+import { generateComfyImage, generateComfyVideo, checkComfyConnection, getAvailableModels, getAvailableLoras, getAvailableIPAdapters, getAvailableSamplers, getAvailableSchedulers, cancelGeneration } from '../services/comfyService';
 import { saveDreamToDatabase } from '../services/storageService';
 import { DreamState, ComfySettings, VideoSettings, DreamAttachment } from '../types';
 import { useConnections } from '../contexts/ConnectionContext';
+import { useEngineContext } from '../contexts/EngineContext';
 import { EngineConfig } from './useEngineManager';
 
 // Polyfill for crypto.randomUUID in insecure contexts (HTTP LAN)
@@ -30,9 +31,17 @@ export const useDreamEngine = (
 ) => {
 
     const { connections } = useConnections();
-    const comfyHost = connections.runpodServerId 
+    const { engines } = useEngineContext();
+
+    // Derive Hosts from EngineContext (Default Enabled Engines)
+    const activeImageEngine = engines.find(e => e.type === 'image' && e.isEnabled);
+    const activeAnalysisEngine = engines.find(e => e.type === 'analysis' && e.isEnabled);
+
+    const comfyHost = activeImageEngine?.config?.host || (connections.runpodServerId 
         ? `https://${connections.runpodServerId}-8188.proxy.runpod.net` 
-        : connections.comfyHost;
+        : connections.comfyHost);
+
+    const ollamaHost = activeAnalysisEngine?.config?.host || connections.ollamaHost;
     const [dreamState, setDreamState] = useState<DreamState>({
         isLoading: false,
         progress: 0,
@@ -63,6 +72,8 @@ export const useDreamEngine = (
     const [availableModels, setAvailableModels] = useState<string[]>([]); // Comfy Models
     const [availableLoras, setAvailableLoras] = useState<string[]>([]);
     const [availableIPAdapters, setAvailableIPAdapters] = useState<string[]>([]);
+    const [availableSamplers, setAvailableSamplers] = useState<string[]>([]); // New
+    const [availableSchedulers, setAvailableSchedulers] = useState<string[]>([]); // New
     const [availableNodeTypes, setAvailableNodeTypes] = useState<string[]>([]); // New State
     const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]); // New: Ollama Models
     
@@ -194,6 +205,8 @@ export const useDreamEngine = (
                          setComfySettings(prev => ({ ...prev, ipAdapterModel: ips.find(m => m.includes('plus_sdxl_vit-h')) || ips[0] }));
                      }
                 });
+                getAvailableSamplers(comfyHost).then(samplers => setAvailableSamplers(samplers));
+                getAvailableSchedulers(comfyHost).then(schedulers => setAvailableSchedulers(schedulers));
                 // Fetch Node Definitions
                 import('../services/comfyService').then(m => m.getAvailableNodeTypes(comfyHost).then(types => setAvailableNodeTypes(types)));
 
@@ -741,6 +754,8 @@ export const useDreamEngine = (
         availableModels,
         availableLoras,
         availableIPAdapters,
+        availableSamplers,
+        availableSchedulers,
         availableNodeTypes,
         availableOllamaModels,
         processDream,

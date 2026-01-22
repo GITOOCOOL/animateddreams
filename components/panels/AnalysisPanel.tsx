@@ -89,7 +89,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
 
                 {/* Live Pipeline Visualizer */}
                 {analysisPipeline && (
-                    <div className="mt-4 bg-[#1a1a1c] border border-white/5 rounded-xl p-4 shadow-lg shadow-purple-900/5 animate-in slide-in-from-top-2">
+                    <div className="mt-4 bg-surface border border-subtle rounded-xl p-4 shadow-lg shadow-purple-900/5 animate-in slide-in-from-top-2">
                         <AnalysisPipelineVisualizer 
                             layers={analysisPipeline.layers} 
                             currentLayerId={currentLayerId}
@@ -123,22 +123,22 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="group relative bg-[#0F0F11] border border-white/10 rounded-2xl overflow-hidden min-h-[150px] flex items-center justify-center transition-all bg-[url('/grid-pattern.png')]"
+                        className="group relative bg-card border border-subtle rounded-2xl overflow-hidden min-h-[150px] flex items-center justify-center transition-all bg-[url('/grid-pattern.png')]"
                     >
                          <div className="text-center p-6 opacity-40 group-hover:opacity-60 transition-opacity">
                             {isLoading ? (
                                 <div className="flex flex-col items-center gap-3">
                                     <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-                                    <p className="text-cyan-400 font-mono text-[10px] uppercase tracking-widest leading-relaxed animate-pulse">
+                                    <p className="text-cyan-600 dark:text-cyan-400 font-mono text-[10px] uppercase tracking-widest leading-relaxed animate-pulse">
                                         {status || "Processing Neural Inputs..."}
                                     </p>
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center gap-3">
-                                    <div className="w-12 h-12 bg-slate-900/50 rounded-full flex items-center justify-center border border-slate-800">
-                                        <Terminal className="w-5 h-5 text-slate-600" />
+                                    <div className="w-12 h-12 bg-hover rounded-full flex items-center justify-center border border-subtle">
+                                        <Terminal className="w-5 h-5 text-dim" />
                                     </div>
-                                    <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest leading-relaxed">
+                                    <p className="text-dim font-mono text-[10px] uppercase tracking-widest leading-relaxed">
                                         [ Awaiting Linguistic Input ]
                                     </p>
                                 </div>
@@ -152,9 +152,9 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
         {/* Control Bar */}
         <div className="flex items-center gap-3 p-1">
             {/* Model & Config */}
-            <div className="flex-1 bg-[#1a1a1c] border border-white/5 rounded-lg px-2 py-2 flex items-center justify-between relative group/config">
+            <div className="flex-1 bg-surface border border-subtle rounded-lg px-2 py-2 flex items-center justify-between relative group/config">
                 <div className="flex items-center gap-2">
-                     <span className="text-[9px] text-slate-500 font-mono uppercase hidden sm:block mr-2">Engine:</span>
+                     <span className="text-[9px] text-dim font-mono uppercase hidden sm:block mr-2">Engine:</span>
                     {/* Engine Selector Dropdown */}
                     {onSelectEngine && availableEngines.length > 0 ? (
                         <EngineSelector
@@ -176,7 +176,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
                                 e.stopPropagation();
                                 onConfigureAnalysis();
                             }}
-                            className="text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-700 p-2 rounded-lg transition-all"
+                            className="text-dim hover:text-main bg-hover p-2 rounded-lg transition-all"
                             title="Configuration"
                         >
                             <Settings className="w-4 h-4" />
@@ -199,7 +199,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
                         h-full px-6 py-3 rounded-lg font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2
                         ${canAnalyze && !isLoading
                             ? 'bg-cyan-600 hover:bg-cyan-500 text-black shadow-[0_0_20px_rgba(34,211,238,0.3)]' 
-                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'}
+                            : 'bg-card text-dim cursor-not-allowed'}
                     `}
                 >
                     {isLoading ? <Activity className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}

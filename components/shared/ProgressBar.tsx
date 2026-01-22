@@ -16,12 +16,12 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 }) => {
   return (
     <div className="w-full font-mono text-xs">
-      <div className="flex justify-between mb-1 text-slate-400 uppercase tracking-widest">
+      <div className="flex justify-between mb-1 text-dim uppercase tracking-widest">
         <span>{label}</span>
         <span className={`text-${color}-400`}>{Math.round(progress)}%</span>
       </div>
       
-      <div className="relative h-2 bg-slate-900 rounded-sm overflow-hidden border border-slate-800">
+      <div className="relative h-2 bg-app rounded-sm overflow-hidden border border-subtle">
         <motion.div 
           className={`absolute top-0 left-0 h-full bg-${color}-500 shadow-[0_0_10px_rgba(34,211,238,0.5)]`}
           initial={{ width: 0 }}
@@ -33,7 +33,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
       </div>
       
       {statusText && (
-        <div className="mt-1 text-right text-[10px] text-slate-500 animate-pulse">
+        <div className="mt-1 text-right text-[10px] text-dim animate-pulse">
            {statusText}
         </div>
       )}

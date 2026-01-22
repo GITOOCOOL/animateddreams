@@ -10,6 +10,8 @@ import { useWorkflow } from './hooks/useWorkflow';
 import { useEngineManager } from './hooks/useEngineManager';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ConnectionProvider, useConnections } from './contexts/ConnectionContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 import Header from './components/layout/Header';
 import AnalysisCard from './components/shared/AnalysisCard';
@@ -40,6 +42,7 @@ import { ResultView } from './components/panels/ResultView';
 
 
 import { ArchitectureViewer } from './components/visualizers/ArchitectureViewer';
+import { Dashboard } from './components/layout/Dashboard';
 
 function AppContent() {
   const { user } = useAuth();
@@ -375,8 +378,21 @@ function AppContent() {
     }
   };
 
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect Header handlers to use Navigate
+  const handleOpenGallery = () => navigate('/gallery');
+  const handleResetApp = () => {
+      handleReset(); // Clears state
+      navigate('/'); // Goes Home
+  };
+  const handleGoHome = () => {
+      navigate('/'); // Only Goes Home (Persists State)
+  };
+
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-slate-200 font-sans selection:bg-purple-500/30">
+    <div className="min-h-screen bg-app text-main font-sans selection:bg-purple-500/30">
       <LoginDialog isOpen={ui.showLogin && !user} onClose={() => { }} />
       
       {/* 1. System Settings (Connections) */}
@@ -388,7 +404,7 @@ function AppContent() {
           <SystemSettingsPanel />
       </SettingsDialog>
 
-        {/* 2. Analysis Settings (LLM) */}
+      {/* 2. Analysis Settings (LLM) */}
        <SettingsDialog 
          isOpen={ui.isAnalysisSettingsOpen} 
          onClose={() => ui.setIsAnalysisSettingsOpen(false)}
@@ -413,7 +429,7 @@ function AppContent() {
       >
           <DictationSettingsPanel />
       </SettingsDialog>
-
+      
       {/* 4. Image Generation Settings (ComfyUI) */}
        <SettingsDialog 
         isOpen={ui.isGenerationSettingsOpen} 
@@ -426,6 +442,8 @@ function AppContent() {
             availableModels={availableModels}
             availableLoras={availableLoras}
             availableIPAdapters={engine.availableIPAdapters}
+            availableSamplers={engine.availableSamplers}
+            availableSchedulers={engine.availableSchedulers}
             availableNodeTypes={engine.availableNodeTypes}
             inputImage={attachments.find(a => a.mimeType.startsWith('image/'))}
             onDone={() => ui.setIsGenerationSettingsOpen(false)}
@@ -449,6 +467,8 @@ function AppContent() {
             settings={engine.videoSettings}
             onSettingsChange={engine.setVideoSettings}
             onDone={() => ui.setIsVideoSettingsOpen(false)}
+            availableModels={availableModels}
+            availableIPAdapters={engine.availableIPAdapters}
           />
       </SettingsDialog>
 
@@ -456,8 +476,9 @@ function AppContent() {
         isComfyConnected={engine.isComfyConnected}
         isRemote={engine.isRemote}
         onToggleDevTools={() => ui.setShowDevTools(!ui.showDevTools)}
-        onReset={handleReset}
-        onOpenGallery={() => ui.setIsGalleryOpen(true)}
+        onReset={handleResetApp}
+        onGoHome={handleGoHome}
+        onOpenGallery={handleOpenGallery}
         showDevTools={ui.showDevTools}
         logs={{
             system: logging.logs,
@@ -469,264 +490,52 @@ function AppContent() {
         onOpenSettings={() => ui.setIsSystemSettingsOpen(true)} 
       />
 
-      <main className="container mx-auto max-w-[1800px] px-4 py-6 flex-1 flex flex-col gap-6">
-          
-          {/* Input Module */}
-          <div className="flex flex-col gap-4 relative">
-              <div className="relative group flex flex-col">
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[400px]">
-                  
-                  {/* Architecture Viewer Overlay */}
-                  {ui.showArchitectureView && (
-                      <ArchitectureViewer 
-                        initialView={ui.architectureViewMode}
-                        onClose={() => ui.setShowArchitectureView(false)} 
-                      />
-                  )}
-
-                  {/* Input Module Header */}
-                  <div className="flex items-center justify-between px-1 mb-4">
-                      <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 tracking-widest uppercase flex items-center gap-2">
-                          <Terminal className="w-4 h-4 text-green-400" />
-                          <span>Input Module</span>
-                      </h3>
-                  </div>
-
-                  {/* Main Content Area */}
-                  <div className="mb-4 relative flex-1 flex flex-col min-h-[300px]">
-                    <textarea
-                      id="dream-input"
-                      value={dreamInput}
-                      onChange={(e) => setDreamInput(e.target.value)}
-                      placeholder="Describe your dream... (e.g., 'A cyberpunk city floating in neon clouds')"
-                      className="w-full h-full bg-black text-white p-6 pt-6 pb-12 focus:outline-none resize-none placeholder:text-slate-600 font-normal text-base lg:text-lg border border-slate-800 rounded-lg focus:border-cyan-500/50 transition-colors flex-1"
-                    />
-                    
-                    {/* Dictation Control Bar (Absolute Bottom Right) */}
-                    <DictationControl
-                        localTranscriber={localTranscriber}
-                        isRecording={isRecording}
-                        isTranscribing={isTranscribing}
-                        onRecordToggle={isRecording ? stopRecording : startRecording}
-                        onOpenSettings={() => ui.setIsDictationSettingsOpen(true)}
-                        availableEngines={engineManager.getEnginesForModule('dictation')}
-                        selectedEngineId={selectedDictationEngine}
-                        onSelectEngine={setSelectedDictationEngine}
-                    />
-                  </div>
-
-                  {/* Attachment Control */}
-                  <div className="flex items-center gap-2 px-4 py-3 bg-white/5 border-t border-white/5 rounded-xl">
-                      <button 
-                          onClick={() => startInputRef.current?.click()}
-                          className={`transition-colors flex items-center gap-2 ${attachments.length > 0 ? 'text-purple-400' : 'text-slate-500 hover:text-white'}`}
-                      >
-                          <ImageIcon className="w-5 h-5" />
-                          <span className="text-xs font-bold uppercase tracking-wider">
-                              {attachments.length > 0 ? attachments[0].file.name.slice(0, 15) : 'Attach'}
-                          </span>
-                      </button>
-                      {attachments.length > 0 && (
-                          <button onClick={clearAttachment} className="text-slate-500 hover:text-red-400">
-                              <X className="w-4 h-4" />
-                          </button>
-                      )}
-                      <input 
-                          type="file" 
-                          ref={startInputRef}
-                          className="hidden" 
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                      />
-                  </div>
-                </div>
-            </div>
-          </div>
-
-          {/* Prompt Analysis Module */}
-          <div className="flex flex-col gap-4 relative scroll-mt-24">
-              <div className="relative group flex flex-col">
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[200px]">
-                    <AnalysisPanel 
-                        analysis={dreamState.analysis}
-                        isLoading={dreamState.isAnalyzing}
-                        status={dreamState.analysisStatus}
-                        editablePrompt={editablePrompt}
-                        onPromptChange={setEditablePrompt}
-                        onAnalyze={handleAnalyze}
-                        canAnalyze={!!dreamInput.trim()}
-                        
-                        availableEngines={engineManager.getEnginesForModule('analysis')}
-                        selectedEngineId={selectedAnalysisEngine}
-                        onSelectEngine={setSelectedAnalysisEngine}
-                        
-                        onConfigureAnalysis={() => ui.setIsAnalysisSettingsOpen(true)}
-                        
-                        analysisProgress={dreamState.analysisProgress}
-                        onCancelAnalysis={engine.cancelAnalysis}
-                        analysisPipeline={engine.analysisPipeline}
-                        currentLayerId={dreamState.currentLayerId}
-                    />
-                </div>
-            </div>
-          </div>
-
-          {ui.showLogs && (
-            <div className="h-48 rounded-xl border border-white/10 overflow-hidden">
-              <LogConsole logs={logging.logs} isOpen={true} onClose={() => { }} embedded />
-            </div>
-          )}
-
-          {/* Image Generation Module */}
-          <div ref={mediaRef} className="flex flex-col gap-4 relative scroll-mt-24">
-              <div className="relative group flex flex-col">
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[500px]">
-             
-                     {/* Image Output Module */}
-                     <MediaPanel
-                          imageUrl={dreamState.generatedImageUrl}
-                          isGeneratingImage={dreamState.isGeneratingImage}
-                              onGenerateImage={() => {
-                                  handleGenerate();
-                                  ui.setIsSystemSettingsOpen(false);
-                              }}
-                          hasAnalysis={!!dreamState.analysis}
-                          onCancel={engine.cancelRender}
-
-                          availableEngines={engineManager.getEnginesForModule('image')}
-                          selectedEngineId={selectedImageEngine}
-                          onSelectEngine={setSelectedImageEngine}
-
-                          onOpenSettings={() => {
-                              ui.setActiveSettingsTab('gen');
-                              ui.setIsGenerationSettingsOpen(true);
-                          }}
-                          onOpenWorkflowSettings={() => {
-                              ui.setActiveSettingsTab('workflow');
-                              ui.setIsGenerationSettingsOpen(true);
-                          }}
-                          onShowWorkflow={() => ui.setShowVisualizationModal(true)}
-                          isModelSelected={!!engine.comfySettings.model}
-                          availableModels={availableModels}
-
-                          currentModel={engine.comfySettings.model || ''}
-                          onModelSelect={(m) => engine.setComfySettings(prev => ({ ...prev, model: m }))}
-                          isComfyConnected={engine.isComfyConnected}
-                          progress={dreamState.progress}
-                          progressStatus={dreamState.progressStatus}
-                          isVisualizing={(dreamState.progress > 0 && dreamState.progress < 100) || !!dreamState.generatedImageUrl}
-                          visualizationContent={
-                               (dreamState.progress > 0 && dreamState.progress < 100) ? (
-                                      <>
-                                          <h3 className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 tracking-widest uppercase flex items-center justify-between flex-shrink-0">
-                                            <span>Neural Synthesis In Progress</span>
-                                            <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
-                                          </h3>
-                                          
-                                          <div className="w-full flex-1 bg-black/50 rounded-lg overflow-hidden border border-white/5 relative group min-h-[300px]">
-                                            <WorkflowVisualizer
-                                              settings={engine.comfySettings}
-                                              workflowType={
-                                                  engine.comfySettings.useIpAdapter && dreamState.attachments?.some(a => a.mimeType.startsWith('image/'))
-                                                     ? 'IP-Adapter'
-                                                     : dreamState.attachments?.some(a => a.mimeType.startsWith('image/')) 
-                                                         ? 'Image-to-Image' 
-                                                         : 'Text-to-Image'
-                                              }
-                                              activeNodeId={engine.activeNodeId}
-                                              dynamicWorkflow={engine.activeImageWorkflow} 
-                                              inputImageUrl={dreamState.attachments?.find(a => a.mimeType.startsWith('image/'))?.previewUrl}
-                                              outputImageUrl={dreamState.generatedImageUrl}
-                                            />
-                                            {/* Overlay for interaction hint */}
-                                            <div className="absolute top-2 right-2 opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
-                                                 <span className="text-[9px] font-mono text-slate-500 bg-black/80 px-1 rounded">DRAG & ZOOM ENABLED</span>
-                                            </div>
-                                          </div>
-                                      </>
-                                  ) : (
-                                      <ResultView 
-                                           imageUrl={dreamState.generatedImageUrl || ''}
-                                           title={null} // Hide Title/Analysis Type
-                                           prompt={dreamState.analysis?.visualPrompt || dreamState.rawText}
-                                           onReset={() => {
-                                                ui.setShowVisualizationModal(false);
-                                           }}
-                                      />
-                                  )
-                            }
-                    />
-                </div>
-            </div>
-          </div>
-
-          {/* Video Generation Module */}
-          <div className="flex flex-col gap-4 relative scroll-mt-24">
-              <div className="relative group flex flex-col">
-                <div className="relative bg-[#0F0F11] border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col min-h-[500px]">
-                    <VideoPanel
-                        videoUrl={dreamState.generatedVideoUrl}
-                        isGeneratingVideo={dreamState.isGeneratingVideo}
-                        onGenerateVideo={() => engine.generateVideo(
-                            editablePrompt,
-                            engineManager.engines.find(e => e.id === selectedVideoEngine)
-                        )}
-                        videoEnabled={true}
-                        onSelectKey={() => { }}
-                        currentVideoModel={engine.videoSettings.model}
-                        onOpenVideoSettings={() => ui.setIsVideoSettingsOpen(true)}
-                        hasAnalysis={!!dreamState.analysis}
-                        
-                        availableEngines={engineManager.getEnginesForModule('video')}
-                        selectedEngineId={selectedVideoEngine}
-                        onSelectEngine={setSelectedVideoEngine}
-                    />
-                </div>
-            </div>
-          </div>
-
-          {/* Feedback Modal for Iterative Loop */}
-          {showFeedbackModal && (
-                           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-                            <div className="bg-[#1a1a1c] border border-purple-500/30 p-8 rounded-2xl max-w-lg w-full shadow-[0_0_50px_rgba(168,85,247,0.2)] animate-in zoom-in-95">
-                              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                                <RotateCcw className="w-5 h-5 text-purple-400" />
-                                Refine Iteration
-                              </h3>
-                              <p className="text-slate-400 text-sm mb-6">
-                                The dream is fluid. Describe what needs to change, and the Neural Engine will evolve the vision.
-                              </p>
-
-                              <textarea
-                                value={feedbackPrompt}
-                                onChange={e => setFeedbackPrompt(e.target.value)}
-                                placeholder="e.g., Make it darker, add more neon lights, change the style to oil painting..."
-                                className="w-full bg-black/50 border border-slate-700 rounded-xl p-4 text-white focus:border-purple-500 focus:outline-none min-h-[100px] mb-6"
-                                autoFocus
-                              />
-
-                              <div className="flex gap-3">
-                                <button
-                                  onClick={() => setShowFeedbackModal(false)}
-                                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg font-bold text-xs uppercase"
-                                >
-                                  <CheckCircle className="w-4 h-4 inline mr-2" />
-                                  Keep This Version
-                                </button>
-                                <button
-                                  onClick={handleRefine}
-                                  className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 rounded-lg font-bold text-xs uppercase shadow-lg shadow-purple-900/30"
-                                >
-                                  <Play className="w-4 h-4 inline mr-2" />
-                                  Evolve Dream
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-        </main>
-
-      <Gallery isOpen={ui.isGalleryOpen} onClose={() => ui.setIsGalleryOpen(false)} />
+      <Routes>
+          <Route path="/" element={
+              <Dashboard 
+                  ui={ui}
+                  logging={logging}
+                  engineManager={engineManager}
+                  engine={engine}
+                  dreamState={dreamState}
+                  dreamInput={dreamInput}
+                  setDreamInput={setDreamInput}
+                  attachments={attachments}
+                  startInputRef={startInputRef}
+                  handleImageUpload={handleImageUpload}
+                  clearAttachment={clearAttachment}
+                  localTranscriber={localTranscriber}
+                  isRecording={isRecording}
+                  isTranscribing={isTranscribing}
+                  stopRecording={stopRecording}
+                  startRecording={startRecording}
+                  selectedDictationEngine={selectedDictationEngine}
+                  setSelectedDictationEngine={setSelectedDictationEngine}
+                  editablePrompt={editablePrompt}
+                  setEditablePrompt={setEditablePrompt}
+                  handleAnalyze={handleAnalyze}
+                  selectedAnalysisEngine={selectedAnalysisEngine}
+                  setSelectedAnalysisEngine={setSelectedAnalysisEngine}
+                  handleGenerate={handleGenerate}
+                  selectedImageEngine={selectedImageEngine}
+                  setSelectedImageEngine={setSelectedImageEngine}
+                  availableModels={availableModels}
+                  handleRefine={handleRefine}
+                  showFeedbackModal={showFeedbackModal}
+                  setShowFeedbackModal={setShowFeedbackModal}
+                  feedbackPrompt={feedbackPrompt}
+                  setFeedbackPrompt={setFeedbackPrompt}
+                  selectedVideoEngine={selectedVideoEngine}
+                  setSelectedVideoEngine={setSelectedVideoEngine}
+                  workflow={workflow} // Pass workflow
+              />
+          } />
+          <Route path="/gallery" element={
+              <div className="flex-1 overflow-y-auto">
+                 <Gallery />
+              </div>
+          } />
+      </Routes>
       
       <FallbackDialog
         isOpen={dreamState.showFallbackConfirmation || false}
@@ -745,13 +554,17 @@ import ErrorBoundary from './components/shared/ErrorBoundary';
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <ConnectionProvider>
-          <EngineProvider>
-             <AppContent />
-          </EngineProvider>
-        </ConnectionProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ConnectionProvider>
+            <EngineProvider>
+              <Router>
+                 <AppContent />
+              </Router>
+            </EngineProvider>
+          </ConnectionProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

@@ -24,11 +24,12 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
     devSettings,
     onUpdateSettings
 }) => {
-    const [activeTab, setActiveTab] = useState<'controls' | 'system' | 'ollama' | 'comfy' | 'arch'>('controls');
+    const [activeTab, setActiveTab] = useState<'controls' | 'logs' | 'arch'>('controls');
+    const [logType, setLogType] = useState<'system' | 'ollama' | 'comfy'>('system');
 
     // Logs Mapping
     const getLogsForTab = () => {
-        switch(activeTab) {
+        switch(logType) {
             case 'ollama': return logs.ollama;
             case 'comfy': return logs.comfy;
             default: return logs.system;
@@ -58,28 +59,17 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                         </button>
                         <div className="w-px bg-slate-700 mx-1 my-1"></div>
                         <button
-                            onClick={() => setActiveTab('system')}
-                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'system' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                            onClick={() => setActiveTab('logs')}
+                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'logs' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
                         >
-                            System
+                            Logs
                         </button>
+                        <div className="w-px bg-slate-700 mx-1 my-1"></div>
                         <button
                             onClick={() => setActiveTab('arch')}
                             className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'arch' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
                         >
                             Arch
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('ollama')}
-                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'ollama' ? 'bg-orange-900/50 text-orange-200' : 'text-slate-500 hover:text-slate-300'}`}
-                        >
-                            Ollama
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('comfy')}
-                            className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-colors ${activeTab === 'comfy' ? 'bg-purple-900/50 text-purple-200' : 'text-slate-500 hover:text-slate-300'}`}
-                        >
-                            Comfy
                         </button>
                     </div>
                     <button onClick={onToggle} className="text-slate-500 hover:text-white ml-2">
@@ -131,6 +121,36 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({
                                 </button>
                             </div>
                         </div>
+                    </div>
+                ) : activeTab === 'logs' ? (
+                    <div className="h-96 flex flex-col">
+                         {/* Logs Sub-Navigation */}
+                         <div className="flex items-center gap-2 p-2 px-4 border-b border-white/5 bg-black/10">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mr-2">Stream:</span>
+                            <div className="flex bg-slate-900/50 rounded p-0.5 border border-white/5">
+                                 <button 
+                                    onClick={() => setLogType('system')}
+                                    className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-all ${logType === 'system' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                                 >
+                                     System
+                                 </button>
+                                 <button 
+                                    onClick={() => setLogType('ollama')}
+                                    className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-all ${logType === 'ollama' ? 'bg-orange-900/40 text-orange-200 shadow-sm border border-orange-500/10' : 'text-slate-500 hover:text-orange-400'}`}
+                                 >
+                                     Ollama
+                                 </button>
+                                 <button 
+                                    onClick={() => setLogType('comfy')}
+                                    className={`px-3 py-1 text-[10px] uppercase font-bold rounded transition-all ${logType === 'comfy' ? 'bg-purple-900/40 text-purple-200 shadow-sm border border-purple-500/10' : 'text-slate-500 hover:text-purple-400'}`}
+                                 >
+                                     Comfy
+                                 </button>
+                            </div>
+                         </div>
+                         
+                         {/* Console */}
+                         <LogConsole logs={getLogsForTab()} isOpen={true} onClose={() => { }} embedded={true} />
                     </div>
                 ) : activeTab === 'arch' ? (
                     <div className="p-6 h-full overflow-y-auto">
